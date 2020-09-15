@@ -108,6 +108,118 @@ class ObjectInPotentialFlow:
         return np.array(points)
 
 
+    def _surface_normal(self, x):
+        # Returns the surface normal vectors on the upper and lower surfaces of the object.
+
+        # Get tangent vectors
+        T_u, T_l = self._surface_tangent(x)
+        
+        # Rotate
+        return np.array([-T_u[1], T_u[0]]), np.array([T_l[1], -T_l[0]])
+
+
+    def _surface_tangent(self, x):
+        # Returns the surface tangent vectors on the upper and lower surfaces of the object.
+        # These vectors point from the leading edge back
+
+        dx = 1e-6
+
+        # Get points near leading edge
+        if abs(x-self._x_le) < dx:
+            _, p_u0, p_l0 = self._geometry(x)
+            _, p_u1, p_l1 = self._geometry(x+dx)
+
+        # Get points near trailing edge
+        elif abs(x-self._x_te) < dx:
+            _, p_u0, p_l0 = self._geometry(x-dx)
+            _, p_u1, p_l1 = self._geometry(x)
+
+        # Get points elsewhere
+        else:
+            _, p_u0, p_l0 = self._geometry(x-dx)
+            _, p_u1, p_l1 = self._geometry(x+dx)
+
+        T_u = p_u1-p_u0
+        T_l = p_l1-p_l0
+        T_u = T_u/np.linalg.norm(T_u)
+        T_l = T_l/np.linalg.norm(T_l)
+        return T_u, T_l
+
+
+    def _surface_tangential_velocity(self, x):
+        # Returns the surface tangential velocity at the x location
+
+        # Get location and tangent vectors
+        _, p_u, p_l = self._geometry(x)
+        T_u, T_l = self._surface_tangent(x)
+
+        # Get velocity
+        V_u = self._velocity(p_u)
+        V_l = self._velocity(p_l)
+
+        # Get tangential velocity
+        V_T_u = np.inner(T_u, V_u)
+        V_T_l = np.inner(T_l, V_l)
+        return V_T_u, V_T_l
+
+
+    def _stagnation(self):
+        # Determines the forward and aft stagnation points
+
+        # Get tangential velocities at various stations to find starting points
+        N = 10
+        while True:
+
+            # Initialize search
+            x = np.zeros(2*N-2)
+            x[:N] = np.linspace(self._x_le, self._x_te, N)
+            x[N:] = x[N-2:0:-1]
+            V_T = np.zeros(2*N-2)
+
+            # Store tangential velocities
+            for i in range(2*N-2):
+                if i < N:
+                    V_T[i],_ = self._surface_tangential_velocity(x[i])
+                else:
+                    _,V = self._surface_tangential_velocity(x[i])
+                    V_T[i] = -V
+
+            # Determine sign changes in the tangential velocity
+            signs = np.sign(V_T)
+            sz = signs == 0
+            while sz.any():
+                signs[sz] = np.roll(signs, 1)[sz]
+                sz = signs == 0
+            sign_changes = ((np.roll(signs, 1) - signs) != 0).astype(int)
+            N_sign_changes = np.sum(sign_changes).item()
+
+            # Make sure we have exactly two sign changes
+            if N_sign_changes == 2:
+                break
+            else:
+                N *= 2 # Refine search
+
+        
+    def _find_stagnation_on_surface(self, x0, x1, upper):
+        # Finds a stagnation point on a surface using the secant method
+
+        # Get initial guess
+        if upper:
+            V0,_ = self._surface_tangential_velocity(x0)
+            V1,_ = self._surface_tangential_velocity(x1)
+        else:
+            _,V0 = self._surface_tangential_velocity(x0)
+            _,V1 = self._surface_tangential_velocity(x1)
+
+        # Iterate
+        e = 1e-10
+        e_approx = 1
+        while e < e_approx:
+
+            # Determine new guess in x
+            
+
+
     def plot(self, x_start, x_lims, ds, n, dy):
         """Plots the object in the flow.
 
@@ -138,6 +250,10 @@ class ObjectInPotentialFlow:
         plt.plot(camber[:,0], camber[:,1], 'r')
         plt.plot(upper[:,0], upper[:,1], 'b')
         plt.plot(lower[:,0], lower[:,1], 'b')
+        for x in x_space:
+            V_T_u, V_T_l = self._surface_tangential_velocity(x)
+            plt.plot(x, V_T_l, 'b.')
+            plt.plot(x, V_T_u, 'r.')
 
         # Format and show plot
         plt.xlabel('x')
@@ -147,8 +263,7 @@ class ObjectInPotentialFlow:
         plt.gca().set_aspect('equal', adjustable='box')
         plt.show()
 
-        # Get stagnation points
-        stag_pnt_0, stag_pnt_1 = self._get_stagnation_points()
+        self._stagnation()
 
     
     @abstractmethod
@@ -198,6 +313,24 @@ class CylinderInPotentialFlow(ObjectInPotentialFlow):
         y_camber = np.zeros_like(x)
         
         return np.array([x, y_camber]).T, np.array([x, y_upper]).T, np.array([x, y_lower]).T
+
+
+    def _velocity(self, point):
+        # Returns the velocity components at the Cartesian coordinates given
+
+        # Get cylindrical coordinates
+        r = np.sqrt(point[0]**2+point[1]**2)
+        theta = np.arctan2(point[1], point[0])
+
+        # Get cylindrical components
+        R_r = (self._R/r)**2
+        V_r = self._V*(1.0-R_r)*np.cos(theta-self._alpha)
+        V_theta = -self._V*(1.0+R_r)*np.sin(theta-self._alpha)
+
+        # Get Cartesian components
+        C_theta = np.cos(theta)
+        S_theta = np.sin(theta)
+        return np.array([V_r*C_theta-V_theta*S_theta, V_r*S_theta+V_theta*C_theta])
 
 
 if __name__=="__main__":
