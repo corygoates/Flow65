@@ -85,14 +85,14 @@ class ObjectInPotentialFlow:
         """
 
         # Determine max iterations (number of steps it would take to go around the outline 4 times)
-        max_iterations = int(16*(x_lims[1]-x_lims[0])/ds)
+        max_iterations = abs(int(16*(x_lims[1]-x_lims[0])/ds))
 
         # Initialize storage
         points = [np.array(start)]
 
         # Loop
         iterations = 0
-        while points[-1][0]>x_lims[0] and points[-1][0]<x_lims[1] and iterations<max_iterations:
+        while points[-1][0]>=x_lims[0] and points[-1][0]<=x_lims[1] and iterations<max_iterations:
             iterations += 1
 
             # Get RK constants
@@ -154,8 +154,8 @@ class ObjectInPotentialFlow:
         T_u, T_l = self._surface_tangent(x)
 
         # Get velocity
-        V_u = self._velocity(p_u)
-        V_l = self._velocity(p_l)
+        V_u,_ = self._velocity(p_u)
+        V_l,_ = self._velocity(p_l)
 
         # Get tangential velocity
         V_T_u = np.inner(T_u, V_u)
@@ -199,6 +199,37 @@ class ObjectInPotentialFlow:
             else:
                 N *= 2 # Refine search
 
+        # Get indices of sign changes
+        chng_locs = np.array([i for i in range(2*N-2)])[np.where(sign_changes)]
+
+        # Get stagnation x locations
+        x_stag = [0.0, 0.0]
+        for i, ind in enumerate(chng_locs):
+
+            # Sign change on upper surface
+            if ind > 0 and ind < N+1:
+                x_stag[i] = self._find_stagnation_on_surface(x[ind-1], x[ind], True)
+            else:
+                x_stag[i] = self._find_stagnation_on_surface(x[ind-1], x[ind], False)
+
+        # Get points
+        stag_points = []
+        for i, ind in enumerate(chng_locs):
+
+            # Sign change on upper surface
+            if ind > 0 and ind < N+1:
+                stag_points.append(self._geometry(x_stag[i])[1])
+            else:
+                stag_points.append(self._geometry(x_stag[i])[2])
+
+        # Sort in x
+        if stag_points[1][0] < stag_points[0][0]:
+            t = stag_points[1]
+            stag_points[1] = stag_points[0]
+            stag_points[0] = t
+
+        return stag_points[0], stag_points[1]
+
         
     def _find_stagnation_on_surface(self, x0, x1, upper):
         # Finds a stagnation point on a surface using the secant method
@@ -217,7 +248,30 @@ class ObjectInPotentialFlow:
         while e < e_approx:
 
             # Determine new guess in x
-            
+            x2 = x1-V1*(x1-x0)/(V1-V0)
+
+            # Check bounds
+            if x2 < self._x_le:
+                x2 = self._x_le+0.001
+            if x2 > self._x_te:
+                x2 = self._x_te-0.001
+
+            # Get new velocity value
+            if upper:
+                V2,_ = self._surface_tangential_velocity(x2)
+            else:
+                _,V2 = self._surface_tangential_velocity(x2)
+
+            # Approximate error
+            e_approx = abs(x2-x1)
+
+            # Update for next iteration
+            x0 = x1
+            V0 = V1
+            x1 = x2
+            V1 = V2
+
+        return x1
 
 
     def plot(self, x_start, x_lims, ds, n, dy):
@@ -250,10 +304,35 @@ class ObjectInPotentialFlow:
         plt.plot(camber[:,0], camber[:,1], 'r')
         plt.plot(upper[:,0], upper[:,1], 'b')
         plt.plot(lower[:,0], lower[:,1], 'b')
-        for x in x_space:
-            V_T_u, V_T_l = self._surface_tangential_velocity(x)
-            plt.plot(x, V_T_l, 'b.')
-            plt.plot(x, V_T_u, 'r.')
+
+        # Determine stagnation points
+        stag_fwd, stag_bwd = self._stagnation()
+        #plt.plot(stag_fwd[0], stag_fwd[1], 'xr')
+        #plt.plot(stag_bwd[0], stag_bwd[1], 'xr')
+
+        # Plot stagnation streamlines
+        S_stag_fwd = self.get_streamline(stag_fwd-np.array([0.0001,0.0]), -0.01, x_lims)
+        S_stag_bwd = self.get_streamline(stag_bwd+np.array([0.0001,0.0]), 0.01, x_lims)
+        plt.plot(S_stag_fwd[:,0], S_stag_fwd[:,1], 'k-')
+        plt.plot(S_stag_bwd[:,0], S_stag_bwd[:,1], 'k-')
+
+        # Plot other streamlines
+        y_start = np.interp(x_start, S_stag_fwd[:,0], S_stag_fwd[:,1])
+        start_point = np.array([x_start, y_start])
+        for i in range(n):
+            point = np.copy(start_point)
+            point[1] += dy*(i+1)
+            streamline = self.get_streamline(point, 0.01, x_lims)
+            plt.plot(streamline[:,0], streamline[:,1], 'k-')
+        for i in range(n):
+            point = np.copy(start_point)
+            point[1] -= dy*(i+1)
+            streamline = self.get_streamline(point, 0.01, x_lims)
+            plt.plot(streamline[:,0], streamline[:,1], 'k-')
+        #for x in x_space:
+        #    V_T_u, V_T_l = self._surface_tangential_velocity(x)
+        #    plt.plot(x, V_T_l, 'b.')
+        #    plt.plot(x, V_T_u, 'r.')
 
         # Format and show plot
         plt.xlabel('x')
@@ -325,12 +404,16 @@ class CylinderInPotentialFlow(ObjectInPotentialFlow):
         # Get cylindrical components
         R_r = (self._R/r)**2
         V_r = self._V*(1.0-R_r)*np.cos(theta-self._alpha)
-        V_theta = -self._V*(1.0+R_r)*np.sin(theta-self._alpha)
+        V_theta = -self._V*(1.0+R_r)*np.sin(theta-self._alpha)-self._gamma/(2.0*np.pi*r)
+
+        # Determine C_P
+        V = np.sqrt(V_r**2+V_theta**2)
+        C_P = 1- (V/self._V)**2
 
         # Get Cartesian components
         C_theta = np.cos(theta)
         S_theta = np.sin(theta)
-        return np.array([V_r*C_theta-V_theta*S_theta, V_r*S_theta+V_theta*C_theta])
+        return np.array([V_r*C_theta-V_theta*S_theta, V_r*S_theta+V_theta*C_theta]), C_P
 
 
 if __name__=="__main__":
