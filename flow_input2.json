@@ -1,0 +1,26 @@
+{
+    "elements" : {
+        "1" : {"type" : "freestream", "velocity" : 10.0, "angle_of_attack" : 0.0},
+        "2" : {"type" : "source", "x" : -3.0, "y" : 2.0, "lambda": 10.0},
+        "3" : {"type" : "source", "x" : 3.0, "y" : 2.0, "lambda": -10.0},
+        "4" : {"type" : "doublet", "x" : 0.0, "y" : 2.0, "kappa" : 40.0, "alpha" : 0.0},
+        "5" : {"type" : "vortex", "x" : -2.0, "y" : -1.9, "gamma" : 10.0},
+        "6" : {"type" : "vortex", "x" : -2.0, "y" : -2.1, "gamma" : -10.0},
+        "7" : {"type" : "vortex", "x" : 2.0, "y" : -1.9, "gamma" : 10.0},
+        "8" : {"type" : "vortex", "x" : 2.0, "y" : -2.1, "gamma" : -10.0},
+        "9" : {"type" : "vortex", "x" : -1.0, "y" : -1.9, "gamma" : 10.0},
+        "10" : {"type" : "vortex", "x" : -1.0, "y" : -2.1, "gamma" : -10.0},
+        "11" : {"type" : "vortex", "x" : 1.0, "y" : -1.9, "gamma" : 10.0},
+        "12" : {"type" : "vortex", "x" : 1.0, "y" : -2.1, "gamma" : -10.0},
+        "13" : {"type" : "vortex", "x" : 0.0, "y" : -1.9, "gamma" : 10.0},
+        "14" : {"type" : "vortex", "x" : 0.0, "y" : -2.1, "gamma" : -10.0}
+    },
+    "plot" : {
+        "x_start" : -5.0,
+        "x_lower_limit" : -5.0,
+        "x_upper_limit" : 5.0,
+        "delta_s" : 0.01,
+        "n_lines" : 25,
+        "delta_y" : 0.2
+    }
+}
