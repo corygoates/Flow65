@@ -417,32 +417,37 @@ class VortexPanelAirfoil(ObjectInPotentialFlow):
 
         # Organize nodes
         if n%2 == 0:
-            self._p_N[:int(n/2),:] = p_upper[::-1,:]
-            self._p_N[int(n/2):,:] = p_lower
+            self._p_N[:int(n/2),:] = p_lower[::-1,:]
+            self._p_N[int(n/2):,:] = p_upper
         else:
-            self._p_N[:int(n/2)+1,:] = p_upper[::-1,:]
-            self._p_N[int(n/2)+1:,:] = p_lower[1:,:]
+            self._p_N[:int(n/2)+1,:] = p_lower[::-1,:]
+            self._p_N[int(n/2)+1:,:] = p_upper[1:,:]
 
         # Determine control points and panel lengths
         self._p_C = 0.5*(self._p_N[:-1,:]+self._p_N[1:,:])
         self._l = np.linalg.norm(self._p_N[:-1,:]-self._p_N[1:,:], axis=1)
 
-        # Determine chi-eta coordinates of each control point; first index is the panel, second index is the control point
-        dxy = self._p_C[np.newaxis,:,:]-self._p_N[:-1,np.newaxis,:]
+        # Determine transformation matrix from x-y to chi-eta
         T = np.ones((self._N,2,2))/self._l[:,np.newaxis,np.newaxis]
         T[:,0,0] *= self._p_N[1:,0]-self._p_N[:-1,0]
         T[:,0,1] *= self._p_N[1:,1]-self._p_N[:-1,1]
         T[:,1,0] *= -(self._p_N[1:,1]-self._p_N[:-1,1])
         T[:,1,1] *= self._p_N[1:,0]-self._p_N[:-1,0]
-        chi_eta = np.matmul(T[:,np.newaxis], dxy[:,:,:,np.newaxis]).reshape((self._N, self._N, 2))
-        chi = chi_eta[:,:,0]
-        eta = chi_eta[:,:,1]
 
-        # Calculate influence matrices
+        # Determine chi-eta coordinates of each control point; first index is the panel, second index is the control point
+        dxy = self._p_C[np.newaxis,:,:]-self._p_N[:-1,np.newaxis,:]
+        chi_eta = np.matmul(T[:,np.newaxis,:,:], dxy[:,:,:,np.newaxis])
+        chi = chi_eta[:,:,0,0]
+        eta = chi_eta[:,:,1,0]
+
+        # Calculate phi and psi for the control points
         E_2_n_2 = eta**2+chi**2
-        phi = np.arctan2(eta*self._l[:,np.newaxis], E_2_n_2-eta*self._l[:,np.newaxis])
-        psi = 0.5*np.log(E_2_n_2/((eta-self._l[:,np.newaxis])**2+eta**2))
-        F = T.transpose((0,2,1))/(2.0*np.pi*self._l[:,np.newaxis,np.newaxis])
+        phi = np.arctan2(eta*self._l[:,np.newaxis], E_2_n_2-chi*self._l[:,np.newaxis])
+        psi = 0.5*np.log(E_2_n_2/((chi-self._l[:,np.newaxis])**2+eta**2))
+
+        # Calculate the influence matrices
+        F = np.transpose(T, (0,2,1))/(2.0*np.pi*self._l[:,np.newaxis,np.newaxis])
+        print(np.matmul(F, T)*2.0*np.pi)
         G = np.zeros((self._N, self._N, 2, 2))
         G[:,:,0,0] = (self._l[:,np.newaxis]-chi)*phi+eta*psi
         G[:,:,0,1] = chi*phi-eta*psi
@@ -465,7 +470,7 @@ class VortexPanelAirfoil(ObjectInPotentialFlow):
 
 
     def set_condition(self, **kwargs):
-        """Specify the given condition. This function serves to generate the B vector.
+        """Specify the given condition. This function serves to generate the b vector.
 
         Parameters
         ----------
