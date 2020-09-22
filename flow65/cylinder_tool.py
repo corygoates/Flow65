@@ -1,6 +1,5 @@
 import sys
 import json
-import scipy
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -13,6 +12,9 @@ class ObjectInPotentialFlow:
 
     Parameters
     ----------
+    radius : float
+        Radius of the cylinder.
+
     x_le : float
         x coordinate of the leading edge.
 
@@ -296,13 +298,13 @@ class ObjectInPotentialFlow:
         pass
 
 
-class VortexPanelAirfoil(ObjectInPotentialFlow):
-    """An airfoil characterized using vortex panel method.
+class CylinderInPotentialFlow(ObjectInPotentialFlow):
+    """A cylinder in potential flow.
 
     Parameters
     ----------
-    NACA : str
-        4-digit NACA designation of the airfoil.
+    radius : float
+        Radius of the cylinder.
 
     x_le : float
         x coordinate of the leading edge.
@@ -315,168 +317,43 @@ class VortexPanelAirfoil(ObjectInPotentialFlow):
         super().__init__(**kwargs)
 
         # Set params
-        self._NACA = kwargs.get("NACA", "0012")
-        self._c = self._x_te-self._x_le
+        self._R = kwargs.get("radius", 1.0)
+        self._x_cent = 0.5*(self._x_te+self._x_le)
+
+        # Check radius
+        R = 0.5*(self._x_te-self._x_le)
+        if abs(self._R-R) > 1e-10:
+            raise IOError("The radius of the circle does not match up with the distance between the leading- and trailing-edge locations.")
 
 
     def _geometry(self, x):
         # Returns the camber line and the upper and lower surface coordinates at the x location given
 
-        pass
+        # Get y values
+        dx = x-self._x_cent
+        y_upper = np.sqrt(self._R**2-dx**2)
+        y_lower = -np.sqrt(self._R**2-dx**2)
+        y_camber = np.zeros_like(x)
+        
+        return np.array([x, y_camber]).T, np.array([x, y_upper]).T, np.array([x, y_lower]).T
 
 
     def _velocity(self, point):
         # Returns the velocity components at the Cartesian coordinates given
 
-        return np.array([0.0, 0.0])
+        # Get cylindrical coordinates
+        r = np.sqrt(point[0]**2+point[1]**2)
+        theta = np.arctan2(point[1], point[0])
 
+        # Get cylindrical components
+        R_r = (self._R/r)**2
+        V_r = self._V*(1.0-R_r)*np.cos(theta-self._alpha)
+        V_theta = -self._V*(1.0+R_r)*np.sin(theta-self._alpha)
 
-    def panel(self, N):
-        """Discretizes the airfoil surface into panels for numerically solving the flow.
-        This function also serves to generate the influence matrix.
-
-        Parameters
-        ---------
-        N : int
-            Number of panels.
-        """
-
-        # Store number of panels
-        self._N = N
-        n = N+1 # Number of nodes
-
-        # Initialize gamma array
-        self._gamma = np.zeros(n)
-
-        # Generate even number of nodes
-        if n%2 == 0:
-            d_theta = np.pi/((n/2)-0.5)
-            theta = np.linspace(0.5*d_theta, np.pi, int(n/2))
-            x = 0.5*(1.0-np.cos(theta))
-
-        # Generate odd number of nodes
-        else:
-            theta = np.linspace(0.0, np.pi, int(n/2)+1)
-            x = 0.5*(1.0-np.cos(theta))
-
-        # Get raw outline points
-        _, p_upper, p_lower = self._geometry(x)
-
-        # Initialize node array
-        self._p_N = np.zeros((n, 2))
-
-        # Organize nodes
-        if n%2 == 0:
-            self._p_N[:int(n/2),:] = p_upper[::-1,:]
-            self._p_N[int(n/2):,:] = p_lower
-        else:
-            self._p_N[:int(n/2)+1,:] = p_upper[::-1,:]
-            self._p_N[int(n/2)+1:,:] = p_lower[1:,:]
-
-        # Determine control points and panel lengths
-        self._p_C = 0.5*(self._p_N[:-1,:]+self._p_N[1:,:])
-        self._l = np.linalg.norm(self._p_N[:-1,:]-self._p_N[1:,:], axis=1)
-
-        # Determine chi-eta coordinates of each control point; first index is the panel, second index is the control point
-        dxy = self._p_C[np.newaxis,:,:]-self._p_N[:-1,np.newaxis,:]
-        T = np.ones((self._N,2,2))/self._l[:,np.newaxis,np.newaxis]
-        T[:,0,0] *= self._p_N[1:,0]-self._p_N[:-1,0]
-        T[:,0,1] *= self._p_N[1:,1]-self._p_N[:-1,1]
-        T[:,1,0] *= -(self._p_N[1:,1]-self._p_N[:-1,1])
-        T[:,1,1] *= self._p_N[1:,0]-self._p_N[:-1,0]
-        chi_eta = np.matmul(T[:,np.newaxis], dxy[:,:,:,np.newaxis]).reshape((self._N, self._N, 2))
-        chi = chi_eta[:,:,0]
-        eta = chi_eta[:,:,1]
-
-        # Calculate influence matrices
-        E_2_n_2 = eta**2+chi**2
-        phi = np.arctan2(eta*self._l[:,np.newaxis], E_2_n_2-eta*self._l[:,np.newaxis])
-        psi = 0.5*np.log(E_2_n_2/((eta-self._l[:,np.newaxis])**2+eta**2))
-        F = T.transpose((0,2,1))/(2.0*np.pi*self._l[:,np.newaxis,np.newaxis])
-        G = np.zeros((self._N, self._N, 2, 2))
-        G[:,:,0,0] = (self._l[:,np.newaxis]-chi)*phi+eta*psi
-        G[:,:,0,1] = chi*phi-eta*psi
-        G[:,:,1,0] = eta*phi-(self._l[:,np.newaxis]-chi)*psi-self._l[:,np.newaxis]
-        G[:,:,1,1] = -eta*phi-chi*psi+self._l[:,np.newaxis]
-        P = np.matmul(F, G)
-
-        # Determine A matrix
-        self._A = np.zeros((n, n))
-        for i in range(self._N):
-            for j in range(self._N):
-                self._A[i,j] += ((self._p_N[i+1,0]-self._p_N[i,0])*P[j,i,1,0]-(self._p_N[i+1,1]-self._p_N[i,1])*P[j,i,0,0])/self._l[i]
-                self._A[i,j+1] += ((self._p_N[i+1,0]-self._p_N[i,0])*P[j,i,1,1]-(self._p_N[i+1,1]-self._p_N[i,1])*P[j,i,0,1])/self._l[i]
-
-        # Kutta condition
-        self._A[-1,0] = 1.0
-        self._A[-1,-1] = 1.0
-
-        # Perform LU decomposition
-
-
-    def set_condition(self, **kwargs):
-        """Specify the given condition. This function serves to generate the B vector.
-
-        Parameters
-        ----------
-        alpha : float
-            Angle of attack in degrees.
-
-        V : float
-            Freestream velocity.
-        """
-
-        # Store angle of attack
-        self._alpha = np.radians(kwargs["alpha"])
-        self._V = kwargs["V"]
-        C_a = np.cos(self._alpha)
-        S_a = np.sin(self._alpha)
-
-        # Populate b vector
-        self._b = np.zeros(self._N+1)
-        self._b[:-1] = self._V*((self._p_N[1:,1]-self._p_N[:-1,1])*C_a-(self._p_N[1:,0]-self._p_N[:-1,0])*S_a)/self._l
-
-
-    def solve(self):
-        """Solve the airfoil at the current condition with the current panelling.
-        """
-
-        # Solve matrix system
-        self._gamma = np.linalg.solve(self._A, self._b)
-
-        # Determine CL
-        CL = np.sum(self._l*(self._gamma[:-1]+self._gamma[1:])/(self._V*self._c))
-        return CL
-
-
-    def _geometry(self, x):
-        # Calculates the geometry
-        self._m = float(self._NACA[0])/100
-        self._p = float(self._NACA[1])/10
-        self._t = float(self._NACA[2:])/100
-
-        # Camber line
-        if self._p != 0.0:
-            y_c =  np.where(x<self._p, self._m/(self._p*self._p)*(2*self._p*x-x*x), self._m/((1-self._p)*(1-self._p))*(1-2*self._p+2*self._p*x-x*x))
-        else:
-            y_c =  np.zeros_like(x)
-
-        # Determine camber line derivative
-        if abs(self._m)<1e-10 or abs(self._p)<1e-10: # Symmetric
-            dy_c_dx = np.zeros_like(x)
-        else:
-            dy_c_dx = np.where(x<self._p, 2*self._m/(self._p*self._p)*(self._p-x), 2*self._m/((1-self._p)*(1-self._p))*(self._p-x))
-
-        # Thickness
-        t =  5.0*self._t*(0.2969*np.sqrt(x)-0.1260*x-0.3516*x*x+0.2843*x*x*x-0.1015*x*x*x*x)
-
-        # Outline points
-        x_upper = x-t*np.sin(np.arctan(dy_c_dx))
-        y_upper = y_c+t*np.cos(np.arctan(dy_c_dx))
-        x_lower = x+t*np.sin(np.arctan(dy_c_dx))
-        y_lower = y_c-t*np.cos(np.arctan(dy_c_dx))
-
-        return np.array([x, y_c]).T, np.array([x_upper, y_upper]).T, np.array([x_lower, y_lower]).T
+        # Get Cartesian components
+        C_theta = np.cos(theta)
+        S_theta = np.sin(theta)
+        return np.array([V_r*C_theta-V_theta*S_theta, V_r*S_theta+V_theta*C_theta])
 
 
 if __name__=="__main__":
@@ -488,24 +365,18 @@ if __name__=="__main__":
 
     # Initialize object
     geom_dict = input_dict["geometry"]
-    airfoil = VortexPanelAirfoil(NACA=geom_dict["NACA"],
-                                 x_le=geom_dict["x_leading_edge"],
-                                 x_te=geom_dict["x_trailing_edge"])
-
-    # Initialize panels
-    airfoil.panel(geom_dict["N"])
+    if "cylinder_radius" in list(geom_dict.keys()):
+        obj = CylinderInPotentialFlow(radius=geom_dict["cylinder_radius"],
+                                      x_le=geom_dict["x_leading_edge"],
+                                      x_te=geom_dict["x_trailing_edge"])
 
     # Set condition
-    airfoil.set_condition(**input_dict["operating"])
+    obj.set_condition(**input_dict["operating"])
 
-    # Solve
-    CL = airfoil.solve()
-    print(CL)
-
-    ## Plot
-    #plot_dict = input_dict["plot"]
-    #airfoil.plot(plot_dict["x_start"],
-    #             [plot_dict["x_lower_limit"], plot_dict["x_upper_limit"]],
-    #             plot_dict["delta_s"],
-    #             plot_dict["n_lines"],
-    #             plot_dict["delta_y"])
+    # Plot
+    plot_dict = input_dict["plot"]
+    obj.plot(plot_dict["x_start"],
+             [plot_dict["x_lower_limit"], plot_dict["x_upper_limit"]],
+             plot_dict["delta_s"],
+             plot_dict["n_lines"],
+             plot_dict["delta_y"])
