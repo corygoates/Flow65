@@ -6,7 +6,9 @@
         "N" : 99
     },
     "operating" : {
-        "alpha" : 0.0,
-        "V" : 10.0
+        "freestream_velocity" : 10.0,
+        "alpha_start[deg]" : -12.0,
+        "alpha_end[deg]" : 16.0,
+        "alpha_increment" : 2.0
     }
 }

@@ -402,12 +402,12 @@ class VortexPanelAirfoil(ObjectInPotentialFlow):
         if n%2 == 0:
             d_theta = np.pi/((n/2)-0.5)
             theta = np.linspace(0.5*d_theta, np.pi, int(n/2))
-            x = 0.5*(1.0-np.cos(theta))
+            x = 0.5*(1.0-np.cos(theta))*self._c
 
         # Generate odd number of nodes
         else:
             theta = np.linspace(0.0, np.pi, int(n/2)+1)
-            x = 0.5*(1.0-np.cos(theta))
+            x = 0.5*(1.0-np.cos(theta))*self._c
 
         # Get raw outline points
         _, p_upper, p_lower = self._geometry(x)
@@ -446,14 +446,12 @@ class VortexPanelAirfoil(ObjectInPotentialFlow):
         psi = 0.5*np.log(E_2_n_2/((chi-self._l[:,np.newaxis])**2+eta**2))
 
         # Calculate the influence matrices
-        F = np.transpose(T, (0,2,1))/(2.0*np.pi*self._l[:,np.newaxis,np.newaxis])
-        print(np.matmul(F, T)*2.0*np.pi)
-        G = np.zeros((self._N, self._N, 2, 2))
-        G[:,:,0,0] = (self._l[:,np.newaxis]-chi)*phi+eta*psi
-        G[:,:,0,1] = chi*phi-eta*psi
-        G[:,:,1,0] = eta*phi-(self._l[:,np.newaxis]-chi)*psi-self._l[:,np.newaxis]
-        G[:,:,1,1] = -eta*phi-chi*psi+self._l[:,np.newaxis]
-        P = np.matmul(F, G)
+        G = np.ones((self._N, self._N, 2, 2))/(2.0*np.pi*self._l[:,np.newaxis,np.newaxis,np.newaxis])
+        G[:,:,0,0] *= (self._l[:,np.newaxis]-chi)*phi+eta*psi
+        G[:,:,0,1] *= chi*phi-eta*psi
+        G[:,:,1,0] *= eta*phi-(self._l[:,np.newaxis]-chi)*psi-self._l[:,np.newaxis]
+        G[:,:,1,1] *= -eta*phi-chi*psi+self._l[:,np.newaxis]
+        P = np.matmul(np.transpose(T, (0,2,1))[:,np.newaxis,:,:], G)
 
         # Determine A matrix
         self._A = np.zeros((n, n))
@@ -501,7 +499,23 @@ class VortexPanelAirfoil(ObjectInPotentialFlow):
 
         # Determine CL
         CL = np.sum(self._l*(self._gamma[:-1]+self._gamma[1:])/(self._V*self._c))
-        return CL
+
+        # Determine Cm_le
+        C_a = np.cos(self._alpha)
+        S_a = np.sin(self._alpha)
+        integrand = self._l*(C_a*(2.0*self._p_N[:-1,0]*self._gamma[:-1]
+                                  +self._p_N[:-1,0]*self._gamma[1:]
+                                  +self._p_N[1:,0]*self._gamma[:-1]
+                                  +2.0*self._p_N[1:,0]*self._gamma[1:])
+                             +S_a*(2.0*self._p_N[:-1,1]*self._gamma[:-1]
+                                   +self._p_N[:-1,1]*self._gamma[1:]
+                                   +self._p_N[1:,1]*self._gamma[:-1]
+                                   +2.0*self._p_N[1:,1]*self._gamma[1:]))
+        Cm_le = -1.0/(3.0*self._c**2*self._V)*np.sum(integrand)
+
+        Cm_c4 = Cm_le+0.25*CL*C_a
+
+        return CL, Cm_le, Cm_c4
 
 
     def _geometry(self, x):
@@ -509,29 +523,30 @@ class VortexPanelAirfoil(ObjectInPotentialFlow):
         self._m = float(self._NACA[0])/100
         self._p = float(self._NACA[1])/10
         self._t = float(self._NACA[2:])/100
+        x_c = x/self._c
 
         # Camber line
         if self._p != 0.0:
-            y_c =  np.where(x<self._p, self._m/(self._p*self._p)*(2*self._p*x-x*x), self._m/((1-self._p)*(1-self._p))*(1-2*self._p+2*self._p*x-x*x))
+            y_c =  np.where(x_c<self._p, self._m/(self._p*self._p)*(2*self._p*x_c-x_c*x_c), self._m/((1-self._p)*(1-self._p))*(1-2*self._p+2*self._p*x_c-x_c*x_c))
         else:
-            y_c =  np.zeros_like(x)
+            y_c =  np.zeros_like(x_c)
 
         # Determine camber line derivative
         if abs(self._m)<1e-10 or abs(self._p)<1e-10: # Symmetric
-            dy_c_dx = np.zeros_like(x)
+            dy_c_dx = np.zeros_like(x_c)
         else:
-            dy_c_dx = np.where(x<self._p, 2*self._m/(self._p*self._p)*(self._p-x), 2*self._m/((1-self._p)*(1-self._p))*(self._p-x))
+            dy_c_dx = np.where(x_c<self._p, 2*self._m/(self._p*self._p)*(self._p-x_c), 2*self._m/((1-self._p)*(1-self._p))*(self._p-x_c))
 
         # Thickness
-        t =  5.0*self._t*(0.2969*np.sqrt(x)-0.1260*x-0.3516*x*x+0.2843*x*x*x-0.1015*x*x*x*x)
+        t =  5.0*self._t*(0.2969*np.sqrt(x_c)-0.1260*x_c-0.3516*x_c*x_c+0.2843*x_c*x_c*x_c-0.1015*x_c*x_c*x_c*x_c)
 
         # Outline points
-        x_upper = x-t*np.sin(np.arctan(dy_c_dx))
-        y_upper = y_c+t*np.cos(np.arctan(dy_c_dx))
-        x_lower = x+t*np.sin(np.arctan(dy_c_dx))
-        y_lower = y_c-t*np.cos(np.arctan(dy_c_dx))
+        x_upper = (x_c-t*np.sin(np.arctan(dy_c_dx)))*self._c
+        y_upper = (y_c+t*np.cos(np.arctan(dy_c_dx)))*self._c
+        x_lower = (x_c+t*np.sin(np.arctan(dy_c_dx)))*self._c
+        y_lower = (y_c-t*np.cos(np.arctan(dy_c_dx)))*self._c
 
-        return np.array([x, y_c]).T, np.array([x_upper, y_upper]).T, np.array([x_lower, y_lower]).T
+        return np.array([x, y_c*self._c]).T, np.array([x_upper, y_upper]).T, np.array([x_lower, y_lower]).T
 
 
 if __name__=="__main__":
@@ -550,12 +565,32 @@ if __name__=="__main__":
     # Initialize panels
     airfoil.panel(geom_dict["N"])
 
-    # Set condition
-    airfoil.set_condition(**input_dict["operating"])
+    # Get iteration params
+    oper_dict = input_dict["operating"]
+    V = oper_dict["freestream_velocity"]
+    a_start = oper_dict["alpha_start[deg]"]
+    a_end = oper_dict["alpha_end[deg]"]
+    a_inc = oper_dict["alpha_increment"]
+    n = int((a_end-a_start)/a_inc+1)
 
-    # Solve
-    CL = airfoil.solve()
-    print(CL)
+    # Start table
+    print("".join(["-"]*80))
+    print("NACA {0}".format(airfoil._NACA))
+    print("".join(["-"]*9))
+    print("{:<20}{:<20}{:<20}{:<20}".format("Alpha [deg]", "CL", "Cm_le", "Cm_c4"))
+    print("".join(["-"]*80))
+
+    # Iterate
+    for a in np.linspace(a_start, a_end, n):
+
+        # Set condition
+        airfoil.set_condition(alpha=a, V=V)
+
+        # Solve
+        coefs = airfoil.solve()
+        print("{:<20.12}{:<20.12}{:<20.12}{:<20.12}".format(a, *coefs))
+
+    print("".join(["-"]*80))
 
     ## Plot
     #plot_dict = input_dict["plot"]
