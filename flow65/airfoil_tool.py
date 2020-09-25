@@ -302,19 +302,25 @@ class ObjectInPotentialFlow:
         plt.plot(camber[:,0], camber[:,1], 'r')
         plt.plot(upper[:,0], upper[:,1], 'b')
         plt.plot(lower[:,0], lower[:,1], 'b')
+        plt.xlim(x_lims)
+        plt.ylim(x_lims)
+        plt.gca().set_aspect('equal', adjustable='box')
 
         # Determine stagnation points
+        print("Locating stagnation points...", end='')
         stag_fwd, stag_bwd = self._stagnation()
-        #plt.plot(stag_fwd[0], stag_fwd[1], 'xr')
-        #plt.plot(stag_bwd[0], stag_bwd[1], 'xr')
+        print("Done")
 
         # Plot stagnation streamlines
+        print("Plotting stagnation streamlines...", end='')
         S_stag_fwd = self.get_streamline(stag_fwd-np.array([0.0001,0.0]), -0.01, x_lims)
         S_stag_bwd = self.get_streamline(stag_bwd+np.array([0.0001,0.0]), 0.01, x_lims)
         plt.plot(S_stag_fwd[:,0], S_stag_fwd[:,1], 'k-')
         plt.plot(S_stag_bwd[:,0], S_stag_bwd[:,1], 'k-')
+        print("Done")
 
         # Plot other streamlines
+        print("Plotting all streamlines...", end='')
         y_start = np.interp(x_start, S_stag_fwd[:,0], S_stag_fwd[:,1])
         start_point = np.array([x_start, y_start])
         for i in range(n):
@@ -327,20 +333,12 @@ class ObjectInPotentialFlow:
             point[1] -= dy*(i+1)
             streamline = self.get_streamline(point, 0.01, x_lims)
             plt.plot(streamline[:,0], streamline[:,1], 'k-')
-        #for x in x_space:
-        #    V_T_u, V_T_l = self._surface_tangential_velocity(x)
-        #    plt.plot(x, V_T_l, 'b.')
-        #    plt.plot(x, V_T_u, 'r.')
+        print("Done")
 
         # Format and show plot
         plt.xlabel('x')
         plt.ylabel('y')
-        plt.xlim(x_lims)
-        plt.ylim(x_lims)
-        plt.gca().set_aspect('equal', adjustable='box')
         plt.show()
-
-        self._stagnation()
 
     
     @abstractmethod
@@ -376,9 +374,37 @@ class VortexPanelAirfoil(ObjectInPotentialFlow):
 
 
     def _velocity(self, point):
-        # Returns the velocity components at the Cartesian coordinates given
+        # Returns the velocity components and coefficient of pressure at the Cartesian coordinates given
 
-        return np.array([0.0, 0.0])
+        # Determine chi-eta coordinates of the point wrt each panel
+        dxy = point[np.newaxis,:]-self._p_N[:-1,:]
+        chi_eta = np.matmul(self._T, dxy[:,:,np.newaxis])
+        chi = chi_eta[:,0,0].flatten()
+        eta = chi_eta[:,1,0].flatten()
+
+        # Calculate phi and psi for the point from each panel
+        E_2_n_2 = eta**2+chi**2
+        phi = np.arctan2(eta*self._l, E_2_n_2-chi*self._l)
+        psi = 0.5*np.log(E_2_n_2/((chi-self._l)**2+eta**2))
+
+        # Calculate the influence matrices
+        G = np.ones((self._N, 2, 2))/(2.0*np.pi*self._l[:,np.newaxis,np.newaxis])
+        G[:,0,0] *= (self._l-chi)*phi+eta*psi
+        G[:,0,1] *= chi*phi-eta*psi
+        G[:,1,0] *= eta*phi-(self._l-chi)*psi-self._l
+        G[:,1,1] *= -eta*phi-chi*psi+self._l
+        P = np.matmul(np.transpose(self._T, (0,2,1)), G)
+
+        # Sum velocity
+        V = np.ones(2)*self._V
+        V[0] *= np.cos(self._alpha)
+        V[1] *= np.sin(self._alpha)
+        for i in range(self._N):
+            V += np.matmul(P[i], self._gamma[i:i+2,np.newaxis]).flatten()
+
+        V_mag = np.linalg.norm(V)
+
+        return V, 1.0-(V_mag/self._V)**2
 
 
     def panel(self, N):
@@ -428,15 +454,15 @@ class VortexPanelAirfoil(ObjectInPotentialFlow):
         self._l = np.linalg.norm(self._p_N[:-1,:]-self._p_N[1:,:], axis=1)
 
         # Determine transformation matrix from x-y to chi-eta
-        T = np.ones((self._N,2,2))/self._l[:,np.newaxis,np.newaxis]
-        T[:,0,0] *= self._p_N[1:,0]-self._p_N[:-1,0]
-        T[:,0,1] *= self._p_N[1:,1]-self._p_N[:-1,1]
-        T[:,1,0] *= -(self._p_N[1:,1]-self._p_N[:-1,1])
-        T[:,1,1] *= self._p_N[1:,0]-self._p_N[:-1,0]
+        self._T = np.ones((self._N,2,2))/self._l[:,np.newaxis,np.newaxis]
+        self._T[:,0,0] *= self._p_N[1:,0]-self._p_N[:-1,0]
+        self._T[:,0,1] *= self._p_N[1:,1]-self._p_N[:-1,1]
+        self._T[:,1,0] *= -(self._p_N[1:,1]-self._p_N[:-1,1])
+        self._T[:,1,1] *= self._p_N[1:,0]-self._p_N[:-1,0]
 
         # Determine chi-eta coordinates of each control point; first index is the panel, second index is the control point
         dxy = self._p_C[np.newaxis,:,:]-self._p_N[:-1,np.newaxis,:]
-        chi_eta = np.matmul(T[:,np.newaxis,:,:], dxy[:,:,:,np.newaxis])
+        chi_eta = np.matmul(self._T[:,np.newaxis,:,:], dxy[:,:,:,np.newaxis])
         chi = chi_eta[:,:,0,0]
         eta = chi_eta[:,:,1,0]
 
@@ -451,7 +477,7 @@ class VortexPanelAirfoil(ObjectInPotentialFlow):
         G[:,:,0,1] *= chi*phi-eta*psi
         G[:,:,1,0] *= eta*phi-(self._l[:,np.newaxis]-chi)*psi-self._l[:,np.newaxis]
         G[:,:,1,1] *= -eta*phi-chi*psi+self._l[:,np.newaxis]
-        P = np.matmul(np.transpose(T, (0,2,1))[:,np.newaxis,:,:], G)
+        P = np.matmul(np.transpose(self._T, (0,2,1))[:,np.newaxis,:,:], G)
 
         # Determine A matrix
         self._A = np.zeros((n, n))
@@ -586,9 +612,12 @@ if __name__=="__main__":
         # Set condition
         airfoil.set_condition(alpha=a, V=V)
 
+        if a == 0.0:
+            print(airfoil._p_N)
+
         # Solve
         coefs = airfoil.solve()
-        print("{:<20.12}{:<20.12}{:<20.12}{:<20.12}".format(a, *coefs))
+        print("{:<20.6}{:<20.6}{:<20.6}{:<20.6}".format(a, *coefs))
 
     print("".join(["-"]*80))
 
