@@ -2,7 +2,7 @@ from airfoil_tool import VortexPanelAirfoil
 
 if __name__=="__main__":
 
-    for NACA in ["2412", "0015"]:
+    for NACA in ["2421", "0015"]:
        # Load airfoil
         airfoil = VortexPanelAirfoil(NACA=NACA,
                                      x_le=0.0,

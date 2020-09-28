@@ -150,10 +150,11 @@ class ObjectInPotentialFlow:
         # Get location and tangent vectors
         _, p_u, p_l = self._geometry(x)
         T_u, T_l = self._surface_tangent(x)
+        N_u, N_l = self._surface_normal(x)
 
-        # Get velocity
-        V_u,_ = self._velocity(p_u)
-        V_l,_ = self._velocity(p_l)
+        # Get velocity stepped off slightly from the surface
+        V_u,_ = self._velocity(p_u+N_u*1e-6)
+        V_l,_ = self._velocity(p_l+N_l*1e-6)
 
         # Get tangential velocity
         V_T_u = np.inner(T_u, V_u)
@@ -225,6 +226,10 @@ class ObjectInPotentialFlow:
             t = stag_points[1]
             stag_points[1] = stag_points[0]
             stag_points[0] = t
+
+        # Force aft stagnation point to be at the trailing edge for airfoils
+        if isinstance(self, VortexPanelAirfoil):
+            stag_points[1] = np.array([self._x_te, 0.0])
 
         return stag_points[0], stag_points[1]
 
