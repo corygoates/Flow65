@@ -153,8 +153,8 @@ class ObjectInPotentialFlow:
         N_u, N_l = self._surface_normal(x)
 
         # Get velocity stepped off slightly from the surface
-        V_u,_ = self._velocity(p_u+N_u*1e-6)
-        V_l,_ = self._velocity(p_l+N_l*1e-6)
+        V_u,_ = self._velocity(p_u)
+        V_l,_ = self._velocity(p_l)
 
         # Get tangential velocity
         V_T_u = np.inner(T_u, V_u)
@@ -302,45 +302,46 @@ class ObjectInPotentialFlow:
         plt.figure()
 
         # Plot geometry
+        y_start = 0.0
         x_space = np.linspace(self._x_le, self._x_te, 1000)
         camber, upper, lower = self._geometry(x_space)
         plt.plot(camber[:,0], camber[:,1], 'r')
         plt.plot(upper[:,0], upper[:,1], 'b')
         plt.plot(lower[:,0], lower[:,1], 'b')
-        plt.xlim(x_lims)
-        plt.ylim(x_lims)
-        plt.gca().set_aspect('equal', adjustable='box')
 
         # Determine stagnation points
-        print("Locating stagnation points...", end='')
+        print("Locating stagnation points...", end='', flush=True)
         stag_fwd, stag_bwd = self._stagnation()
         print("Done")
 
         # Plot stagnation streamlines
-        print("Plotting stagnation streamlines...", end='')
-        S_stag_fwd = self.get_streamline(stag_fwd-np.array([0.0001,0.0]), -0.01, x_lims)
-        S_stag_bwd = self.get_streamline(stag_bwd+np.array([0.0001,0.0]), 0.01, x_lims)
+        print("Plotting stagnation streamlines...", end='', flush=True)
+        S_stag_fwd = self.get_streamline(stag_fwd-np.array([0.0001,0.0]), -ds, x_lims)
+        S_stag_bwd = self.get_streamline(stag_bwd+np.array([0.0001,0.0]), ds, x_lims)
         plt.plot(S_stag_fwd[:,0], S_stag_fwd[:,1], 'k-')
         plt.plot(S_stag_bwd[:,0], S_stag_bwd[:,1], 'k-')
         print("Done")
+        y_start = np.interp(x_start, S_stag_fwd[:,0], S_stag_fwd[:,1])
 
         # Plot other streamlines
-        print("Plotting all streamlines...", end='')
-        y_start = np.interp(x_start, S_stag_fwd[:,0], S_stag_fwd[:,1])
+        print("Plotting all streamlines...", end='', flush=True)
         start_point = np.array([x_start, y_start])
         for i in range(n):
             point = np.copy(start_point)
             point[1] += dy*(i+1)
-            streamline = self.get_streamline(point, 0.01, x_lims)
+            streamline = self.get_streamline(point, ds, x_lims)
             plt.plot(streamline[:,0], streamline[:,1], 'k-')
         for i in range(n):
             point = np.copy(start_point)
             point[1] -= dy*(i+1)
-            streamline = self.get_streamline(point, 0.01, x_lims)
+            streamline = self.get_streamline(point, ds, x_lims)
             plt.plot(streamline[:,0], streamline[:,1], 'k-')
         print("Done")
 
         # Format and show plot
+        plt.ylim([y_start-dy*(n+1), y_start+dy*(n+1)])
+        plt.xlim(x_lims)
+        plt.gca().set_aspect('equal', adjustable='box')
         plt.xlabel('x')
         plt.ylabel('y')
         plt.show()
@@ -360,22 +361,30 @@ class VortexPanelAirfoil(ObjectInPotentialFlow):
 
     Parameters
     ----------
-    NACA : str
-        4-digit NACA designation of the airfoil.
+    airfoil : str
+        4-digit NACA designation of the airfoil or "ULxx" to specify a
+        uniform load airfoil with a NACA thickness distribution with
+        maximum thickness of xx. Defaults to "0012".
 
-    x_le : float
-        x coordinate of the leading edge.
+    CL_design : float
+        Design CL at zero angle of attack for uniform load airfoil.
 
-    x_te : float
-        x coordinate of the trailing edge.
+    trailing_edge : str
+        "open" or "closed". Determines the equations for the thickness distribution.
     """
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
         # Set params
-        self._NACA = kwargs.get("NACA", "0012")
+        self._airfoil = kwargs.get("airfoil", "0012")
+        if "UL" in self._airfoil:
+            self._camber_type = "UL"
+            self._CL_d = kwargs["CL_design"]
+        else:
+            self._camber_type = "NACA"
         self._c = self._x_te-self._x_le
+        self._close_te = kwargs.get("trailing_edge") == "closed"
 
 
     def _velocity(self, point):
@@ -495,8 +504,6 @@ class VortexPanelAirfoil(ObjectInPotentialFlow):
         self._A[-1,0] = 1.0
         self._A[-1,-1] = 1.0
 
-        # Perform LU decomposition
-
 
     def set_condition(self, **kwargs):
         """Specify the given condition. This function serves to generate the b vector.
@@ -551,31 +558,45 @@ class VortexPanelAirfoil(ObjectInPotentialFlow):
 
     def _geometry(self, x):
         # Calculates the geometry
-        self._m = float(self._NACA[0])/100
-        self._p = float(self._NACA[1])/10
-        self._t = float(self._NACA[2:])/100
         x_c = x/self._c
+        self._t = float(self._airfoil[2:])/100
+        if self._camber_type == "NACA":
+            self._m = float(self._airfoil[0])/100
+            self._p = float(self._airfoil[1])/10
 
-        # Camber line
-        if self._p != 0.0:
-            y_c =  np.where(x_c<self._p, self._m/(self._p*self._p)*(2*self._p*x_c-x_c*x_c), self._m/((1-self._p)*(1-self._p))*(1-2*self._p+2*self._p*x_c-x_c*x_c))
-        else:
-            y_c =  np.zeros_like(x_c)
+            # Camber line
+            if self._p != 0.0:
+                y_c =  np.where(x_c<self._p, self._m/(self._p*self._p)*(2*self._p*x_c-x_c*x_c), self._m/((1-self._p)*(1-self._p))*(1-2*self._p+2*self._p*x_c-x_c*x_c))
+            else:
+                y_c =  np.zeros_like(x_c)
 
-        # Determine camber line derivative
-        if abs(self._m)<1e-10 or abs(self._p)<1e-10: # Symmetric
-            dy_c_dx = np.zeros_like(x_c)
+            # Determine camber line derivative
+            if abs(self._m)<1e-10 or abs(self._p)<1e-10: # Symmetric
+                dy_c_dx = np.zeros_like(x_c)
+            else:
+                dy_c_dx = np.where(x_c<self._p, 2*self._m/(self._p*self._p)*(self._p-x_c), 2*self._m/((1-self._p)*(1-self._p))*(self._p-x_c))
+
         else:
-            dy_c_dx = np.where(x_c<self._p, 2*self._m/(self._p*self._p)*(self._p-x_c), 2*self._m/((1-self._p)*(1-self._p))*(self._p-x_c))
+
+            # Camber line and derivative
+            with np.errstate(invalid='ignore', divide='ignore'):
+                const = self._CL_d*self._c/(4.0*np.pi)
+                y_c =  np.where((x_c != 0.0) & (x_c != 1.0), const*((x_c-1.0)*np.log(1.0-x_c)-x_c*np.log(x_c)), 0.0)
+                dy_c_dx = const*np.where(x_c != 1.0, np.log(1.0-x_c)+(x_c-1.0)/(1.0-x_c)-np.log(x_c)-1.0, -1.0)
+
 
         # Thickness
-        t =  5.0*self._t*(0.2969*np.sqrt(x_c)-0.1260*x_c-0.3516*x_c*x_c+0.2843*x_c*x_c*x_c-0.1015*x_c*x_c*x_c*x_c)
+        if self._close_te:
+            t =  self._t*(2.980*np.sqrt(x_c)-1.320*x_c-3.286*x_c*x_c+2.441*x_c*x_c*x_c-0.815*x_c*x_c*x_c*x_c)
+        else:
+            t =  5.0*self._t*(0.2969*np.sqrt(x_c)-0.1260*x_c-0.3516*x_c*x_c+0.2843*x_c*x_c*x_c-0.1015*x_c*x_c*x_c*x_c)
 
         # Outline points
-        x_upper = (x_c-t*np.sin(np.arctan(dy_c_dx)))*self._c
-        y_upper = (y_c+t*np.cos(np.arctan(dy_c_dx)))*self._c
-        x_lower = (x_c+t*np.sin(np.arctan(dy_c_dx)))*self._c
-        y_lower = (y_c-t*np.cos(np.arctan(dy_c_dx)))*self._c
+        theta = np.arctan(dy_c_dx)
+        x_upper = (x_c-t*np.sin(theta))*self._c
+        y_upper = (y_c+t*np.cos(theta))*self._c
+        x_lower = (x_c+t*np.sin(theta))*self._c
+        y_lower = (y_c-t*np.cos(theta))*self._c
 
         return np.array([x, y_c*self._c]).T, np.array([x_upper, y_upper]).T, np.array([x_lower, y_lower]).T
 
@@ -589,47 +610,23 @@ if __name__=="__main__":
 
     # Initialize object
     geom_dict = input_dict["geometry"]
-    airfoil = VortexPanelAirfoil(NACA=geom_dict["NACA"],
-                                 x_le=geom_dict["x_leading_edge"],
-                                 x_te=geom_dict["x_trailing_edge"])
+    airfoil = VortexPanelAirfoil(**geom_dict)
 
     # Initialize panels
-    airfoil.panel(geom_dict["N"])
+    airfoil.panel(geom_dict["n_points"]-1)
 
-    # Get iteration params
+    # Set condition
     oper_dict = input_dict["operating"]
-    V = oper_dict["freestream_velocity"]
-    a_start = oper_dict["alpha_start[deg]"]
-    a_end = oper_dict["alpha_end[deg]"]
-    a_inc = oper_dict["alpha_increment"]
-    n = int((a_end-a_start)/a_inc+1)
+    airfoil.set_condition(alpha=oper_dict["alpha[deg]"], V=oper_dict["freestream_velocity"])
 
-    # Start table
-    print("".join(["-"]*80))
-    print("NACA {0}".format(airfoil._NACA))
-    print("".join(["-"]*9))
-    print("{:<20}{:<20}{:<20}{:<20}".format("Alpha [deg]", "CL", "Cm_le", "Cm_c4"))
-    print("".join(["-"]*80))
+    # Solve
+    coefs = airfoil.solve()
+    print(coefs)
 
-    # Iterate
-    for a in np.linspace(a_start, a_end, n):
-
-        # Set condition
-        airfoil.set_condition(alpha=a, V=V)
-
-        if a == 0.0:
-            print(airfoil._p_N)
-
-        # Solve
-        coefs = airfoil.solve()
-        print("{:<20.6}{:<20.6}{:<20.6}{:<20.6}".format(a, *coefs))
-
-    print("".join(["-"]*80))
-
-    ## Plot
-    #plot_dict = input_dict["plot"]
-    #airfoil.plot(plot_dict["x_start"],
-    #             [plot_dict["x_lower_limit"], plot_dict["x_upper_limit"]],
-    #             plot_dict["delta_s"],
-    #             plot_dict["n_lines"],
-    #             plot_dict["delta_y"])
+    # Plot
+    plot_dict = input_dict["plot"]
+    airfoil.plot(plot_dict["x_start"],
+                 [plot_dict["x_lower_limit"], plot_dict["x_upper_limit"]],
+                 plot_dict["delta_s"],
+                 plot_dict["n_lines"],
+                 plot_dict["delta_y"])
