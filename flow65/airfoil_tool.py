@@ -587,9 +587,9 @@ class VortexPanelAirfoil(ObjectInPotentialFlow):
 
         # Thickness
         if self._close_te:
-            t =  self._t*(2.980*np.sqrt(x_c)-1.320*x_c-3.286*x_c*x_c+2.441*x_c*x_c*x_c-0.815*x_c*x_c*x_c*x_c)
+            t =  0.5*self._t*(2.980*np.sqrt(x_c)-1.320*x_c-3.286*x_c*x_c+2.441*x_c*x_c*x_c-0.815*x_c*x_c*x_c*x_c)
         else:
-            t =  5.0*self._t*(0.2969*np.sqrt(x_c)-0.1260*x_c-0.3516*x_c*x_c+0.2843*x_c*x_c*x_c-0.1015*x_c*x_c*x_c*x_c)
+            t =  0.5*self._t*(2.969*np.sqrt(x_c)-1.260*x_c-3.516*x_c*x_c+2.843*x_c*x_c*x_c-1.015*x_c*x_c*x_c*x_c)
 
         # Outline points
         theta = np.arctan(dy_c_dx)

@@ -2,7 +2,7 @@
     "geometry" : {
         "airfoil" : "UL12",
         "CL_design" : 0.2593304460915939,
-        "trailing_edge" : "closed",
+        "trailing_edge" : "open",
         "n_points" : 100
     },
     "operating" : {
