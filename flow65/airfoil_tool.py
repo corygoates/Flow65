@@ -582,7 +582,7 @@ class VortexPanelAirfoil(ObjectInPotentialFlow):
             with np.errstate(invalid='ignore', divide='ignore'):
                 const = self._CL_d*self._c/(4.0*np.pi)
                 y_c =  np.where((x_c != 0.0) & (x_c != 1.0), const*((x_c-1.0)*np.log(1.0-x_c)-x_c*np.log(x_c)), 0.0)
-                dy_c_dx = const*np.where(x_c != 1.0, np.log(1.0-x_c)+(x_c-1.0)/(1.0-x_c)-np.log(x_c)-1.0, -1.0)
+                dy_c_dx = const*np.where((x_c != 1.0) & (x_c != 1.0), np.log(1.0-x_c)-np.log(x_c), 0.0)
 
 
         # Thickness
