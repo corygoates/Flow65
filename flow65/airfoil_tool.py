@@ -171,7 +171,7 @@ class ObjectInPotentialFlow:
 
             # Initialize search
             x = np.zeros(2*N-2)
-            x[:N] = np.linspace(self._x_le, self._x_te, N)
+            x[:N] = np.linspace(self._x_le, self._x_te-1e-10, N)
             x[N:] = x[N-2:0:-1]
             V_T = np.zeros(2*N-2)
 
@@ -277,7 +277,7 @@ class ObjectInPotentialFlow:
         return x1
 
 
-    def plot(self, x_start, x_lims, ds, n, dy):
+    def plot(self, x_start, x_lims, ds, n, dy, plot_stagnation=True):
         """Plots the object in the flow.
 
         Parameters
@@ -296,6 +296,9 @@ class ObjectInPotentialFlow:
 
         dy : float
             Spacing in y of the streamlines.
+
+        plot_stagnation : bool, optional
+            Whether to plot the stagnation streamlines. Defaults to True.
         """
 
         # Initialize plot
@@ -310,18 +313,19 @@ class ObjectInPotentialFlow:
         plt.plot(lower[:,0], lower[:,1], 'b')
 
         # Determine stagnation points
-        print("Locating stagnation points...", end='', flush=True)
-        stag_fwd, stag_bwd = self._stagnation()
-        print("Done")
+        if plot_stagnation:
+            print("Locating stagnation points...", end='', flush=True)
+            stag_fwd, stag_bwd = self._stagnation()
+            print("Done")
 
-        # Plot stagnation streamlines
-        print("Plotting stagnation streamlines...", end='', flush=True)
-        S_stag_fwd = self.get_streamline(stag_fwd-np.array([0.0001,0.0]), -ds, x_lims)
-        S_stag_bwd = self.get_streamline(stag_bwd+np.array([0.0001,0.0]), ds, x_lims)
-        plt.plot(S_stag_fwd[:,0], S_stag_fwd[:,1], 'k-')
-        plt.plot(S_stag_bwd[:,0], S_stag_bwd[:,1], 'k-')
-        print("Done")
-        y_start = np.interp(x_start, S_stag_fwd[:,0], S_stag_fwd[:,1])
+            # Plot stagnation streamlines
+            print("Plotting stagnation streamlines...", end='', flush=True)
+            S_stag_fwd = self.get_streamline(stag_fwd-np.array([0.0001,0.0]), -ds, x_lims)
+            S_stag_bwd = self.get_streamline(stag_bwd+np.array([0.0001,0.0]), ds, x_lims)
+            plt.plot(S_stag_fwd[:,0], S_stag_fwd[:,1], 'k-')
+            plt.plot(S_stag_bwd[:,0], S_stag_bwd[:,1], 'k-')
+            print("Done")
+            y_start = np.interp(x_start, S_stag_fwd[:,0], S_stag_fwd[:,1])
 
         # Plot other streamlines
         print("Plotting all streamlines...", end='', flush=True)
@@ -578,11 +582,11 @@ class VortexPanelAirfoil(ObjectInPotentialFlow):
 
         else:
 
-            # Camber line and derivative
+            # Camber line and derivative; the derivative can be zero at the leading edge because the thickness is zero there.
             with np.errstate(invalid='ignore', divide='ignore'):
                 const = self._CL_d*self._c/(4.0*np.pi)
-                y_c =  np.where((x_c != 0.0) & (x_c != 1.0), const*((x_c-1.0)*np.log(1.0-x_c)-x_c*np.log(x_c)), 0.0)
-                dy_c_dx = const*np.where((x_c != 1.0) & (x_c != 1.0), np.log(1.0-x_c)-np.log(x_c), 0.0)
+                y_c = const*np.where((x_c != 0.0) & (x_c != 1.0), ((x_c-1.0)*np.log(1.0-x_c)-x_c*np.log(x_c)), 0.0)
+                dy_c_dx = const*np.where(x_c != 1.0, np.where(x_c != 0.0, np.log(1.0-x_c)-np.log(x_c), 0.0), np.log(1e-15))
 
 
         # Thickness
@@ -629,4 +633,5 @@ if __name__=="__main__":
                  [plot_dict["x_lower_limit"], plot_dict["x_upper_limit"]],
                  plot_dict["delta_s"],
                  plot_dict["n_lines"],
-                 plot_dict["delta_y"])
+                 plot_dict["delta_y"],
+                 plot_stagnation=True)
