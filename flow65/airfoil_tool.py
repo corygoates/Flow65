@@ -560,6 +560,36 @@ class VortexPanelAirfoil(ObjectInPotentialFlow):
         return CL, Cm_le, Cm_c4
 
 
+    def plot_C_P(self):
+        """Plots the pressure coefficient distribution on the surface of the
+        airfoil at the current condition.
+        """
+
+        # Determine normal vectors at control points
+        self._n = np.zeros((self._N, 2))
+        self._n[:,0] += -(self._p_N[1:,1]-self._p_N[:-1,1])/self._l
+        self._n[:,1] += (self._p_N[1:,0]-self._p_N[:-1,0])/self._l
+
+        # Offset control points
+        eps = 1e-6
+        C_P_points = self._p_C+self._n*eps
+
+        # Get C_P
+        C_P = np.zeros(self._N)
+        for i, p in enumerate(C_P_points):
+            _,C_P[i] = self._velocity(p)
+
+        # Plot
+        plt.figure()
+        plt.plot(self._p_C[:self._N//2,0], C_P[:self._N//2], label='Bottom')
+        plt.plot(self._p_C[self._N//2:,0], C_P[self._N//2:], label='Top')
+        plt.gca().invert_yaxis()
+        plt.xlabel("x/c")
+        plt.ylabel("C_P")
+        plt.legend()
+        plt.show()
+
+
     def _geometry(self, x):
         # Calculates the geometry
         x_c = x/self._c
@@ -625,13 +655,21 @@ if __name__=="__main__":
 
     # Solve
     coefs = airfoil.solve()
-    print(coefs)
+    print("Angle of attack: {0} deg".format(oper_dict["alpha[deg]"]))
+    print("CL: {0}".format(coefs[0]))
+    print("Cm_le: {0}".format(coefs[1]))
+    print("Cm_c/4: {0}".format(coefs[2]))
 
     # Plot
     plot_dict = input_dict["plot"]
-    airfoil.plot(plot_dict["x_start"],
-                 [plot_dict["x_lower_limit"], plot_dict["x_upper_limit"]],
-                 plot_dict["delta_s"],
-                 plot_dict["n_lines"],
-                 plot_dict["delta_y"],
-                 plot_stagnation=True)
+    if plot_dict.get("plot_streamlines", True):
+        airfoil.plot(plot_dict["x_start"],
+                     [plot_dict["x_lower_limit"], plot_dict["x_upper_limit"]],
+                     plot_dict["delta_s"],
+                     plot_dict["n_lines"],
+                     plot_dict["delta_y"],
+                     plot_stagnation=True)
+
+    # Plot C_P
+    if plot_dict.get("plot_C_P", True):
+        airfoil.plot_C_P()
