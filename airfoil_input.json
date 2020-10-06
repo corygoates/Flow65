@@ -1,7 +1,7 @@
 {
     "geometry" : {
-        "airfoil" : "file",
-        "CL_design" : 0.3,
+        "airfoil" : "UL01",
+        "CL_design" : 0.5,
         "filename" : "2412.txt",
         "trailing_edge" : "open",
         "n_points" : 200
@@ -24,9 +24,9 @@
         "delta_y" : 0.1
     },
     "run_commands" : {
-        "plot_streamlines" : false,
+        "plot_streamlines" : true,
         "plot_pressure" : false,
-        "alpha_sweep" : true,
-        "export_geometry" : true
+        "alpha_sweep" : false,
+        "export_geometry" : false
     }
 }
