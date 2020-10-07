@@ -278,7 +278,7 @@ class ObjectInPotentialFlow:
         return x1
 
 
-    def plot(self, x_start, x_lims, ds, n, dy, plot_stagnation=True):
+    def plot_streamlines(self, x_start, x_lims, ds, n, dy, plot_stagnation=True):
         """Plots the object in the flow.
 
         Parameters
@@ -307,16 +307,40 @@ class ObjectInPotentialFlow:
 
         # Plot geometry
         y_start = 0.0
-        x_space = np.linspace(self._x_le, self._x_te, 1000)
-        camber, upper, lower = self._geometry(x_space)
-        plt.plot(camber[:,0], camber[:,1], 'r--')
-        plt.plot(upper[:,0], upper[:,1], 'k')
-        plt.plot(lower[:,0], lower[:,1], 'k')
+        if hasattr(self, "_airfoil") and self._airfoil == "file":
+            plt.plot(self._p_N[:,0], self._p_N[:,1], 'k')
+        else:
+            x_space = np.linspace(self._x_le, self._x_te, 1000)
+            camber, upper, lower = self._geometry(x_space)
+            plt.plot(camber[:,0], camber[:,1], 'r--')
+            plt.plot(upper[:,0], upper[:,1], 'k')
+            plt.plot(lower[:,0], lower[:,1], 'k')
 
         # Determine stagnation points
         if plot_stagnation:
             print("Locating stagnation points...", end='', flush=True)
-            stag_fwd, stag_bwd = self._stagnation()
+            if hasattr(self, "_airfoil") and self._airfoil == "file":
+
+                # Determine normal vectors at control points
+                self._n = np.zeros((self._N, 2))
+                self._n[:,0] += -(self._p_N[1:,1]-self._p_N[:-1,1])/self._l
+                self._n[:,1] += (self._p_N[1:,0]-self._p_N[:-1,0])/self._l
+
+                # Offset control points
+                eps = 1e-3
+                V_points = self._p_C+self._n*eps
+
+                # Get V
+                V = np.zeros((self._N,2))
+                for i, p in enumerate(V_points):
+                    V[i],_ = self._velocity(p)
+
+                # Get stagnation points
+                stag_fwd = V_points[np.argmin(V[self._N//4:self._N-self._N//4])]
+                stag_bwd = [self._x_te, 0.0]
+
+            else:
+                stag_fwd, stag_bwd = self._stagnation()
             print("Done")
 
             # Plot stagnation streamlines
@@ -741,12 +765,12 @@ if __name__=="__main__":
             #print("{:<20.12}{:<20.12}{:<20.12}{:<20.12}".format(a, *coefs))
 
             # Plot
-            airfoil.plot(plot_dict["x_start"],
-                         [plot_dict["x_lower_limit"], plot_dict["x_upper_limit"]],
-                         plot_dict["delta_s"],
-                         plot_dict["n_lines"],
-                         plot_dict["delta_y"],
-                         plot_stagnation=True)
+            airfoil.plot_streamlines(plot_dict["x_start"],
+                                     [plot_dict["x_lower_limit"], plot_dict["x_upper_limit"]],
+                                     plot_dict["delta_s"],
+                                     plot_dict["n_lines"],
+                                     plot_dict["delta_y"],
+                                     plot_stagnation=True)
 
         elif key == "plot_pressure":
 
