@@ -25,6 +25,7 @@ class ObjectInPotentialFlow:
         # Get params
         self._x_le = kwargs.get("x_le", 0.0)
         self._x_te = kwargs.get("x_te", 1.0)
+        self._c = self._x_te-self._x_le
 
 
     def set_condition(self, **kwargs):
@@ -693,6 +694,62 @@ class VortexPanelAirfoil(ObjectInPotentialFlow):
         np.savetxt(filename, self._p_N, fmt=fmt_str, header=header)
 
 
+class CylinderInComplexPotentialFlow(ObjectInPotentialFlow):
+    """A cylinder in potential flow.
+
+    Parameters
+    ----------
+    cylinder_radius : float
+        Radius of the cylinder.
+
+    z : list
+        Complex location of the cylinder center. Defaults to [0.0, 0.0].
+    """
+
+    def __init__(self, **kwargs):
+
+        # Set params
+        self._R = kwargs.get("cylinder_radius", 1.0)
+        z0 = kwargs.get("z", [0.0, 0.0])
+        self._z0 = np.complex(z0[0], z0[1])
+
+        # Call parent initializer
+        super().__init__(x_le=np.real(self._z0)-self._R, x_te=np.real(self._z0)+self._R)
+
+
+    def _geometry(self, x):
+        # Returns the camber line and the upper and lower surface coordinates at the x location given
+
+        # Get y values
+        dx = x-np.real(self._z0)
+        y_upper = np.sqrt(self._R**2-dx**2)
+        y_lower = -np.sqrt(self._R**2-dx**2)
+        y_camber = np.zeros_like(x)
+        
+        return np.array([x, y_camber]).T, np.array([x, y_upper]).T, np.array([x, y_lower]).T
+
+
+    def _velocity(self, point):
+        # Returns the velocity components at the Cartesian coordinates given
+
+        # Transform to complex
+        z = np.complex(point[0], point[1])
+        j = np.complex(0.0, 1.0)
+
+        # Get complex velocity
+        w = self._V*(np.exp(-j*self._alpha)+j*self._gamma/(2.0*np.pi*self._V*(z-self._z0))-self._R**2*np.exp(j*self._alpha)/(z-self._z0)**2)
+
+        Vx = np.real(w)
+        Vy = -np.imag(w)
+        V = np.sqrt(Vx*Vx+Vy*Vy)
+        return np.array([Vx, Vy]), 1.0-V*V/self._V**2
+
+    
+    def solve(self):
+        """Determine the coefficients."""
+        return self._gamma/(self._V*self._c)
+
+
 if __name__=="__main__":
 
     # Get input
@@ -702,19 +759,28 @@ if __name__=="__main__":
 
     # Initialize object
     geom_dict = input_dict["geometry"]
-    airfoil = VortexPanelAirfoil(**geom_dict)
 
-    # Print airfoil information
-    print("".join(["-"]*80))
-    if airfoil._airfoil != "file":
-        print("Airfoil: {0}".format(airfoil._airfoil))
-        print("    Trailing edge type: {0}".format(geom_dict["trailing_edge"]))
-    else:
-        print("Airfoil: {0}".format(geom_dict["filename"]))
-    print("    # panels: {0}".format(airfoil._N))
-    if "UL" in airfoil._airfoil:
-        print("    Design lift coefficient: {0}".format(geom_dict["CL_design"]))
-    print("".join(["-"]*9))
+    # Airfoil
+    if "airfoil" in list(geom_dict.keys()):
+        airfoil = True
+        flow_object = VortexPanelAirfoil(**geom_dict)
+
+        # Print airfoil information
+        print("".join(["-"]*80))
+        if flow_object._airfoil != "file":
+            print("Airfoil: {0}".format(flow_object._airfoil))
+            print("    Trailing edge type: {0}".format(geom_dict["trailing_edge"]))
+        else:
+            print("Airfoil: {0}".format(geom_dict["filename"]))
+        print("    # panels: {0}".format(flow_object._N))
+        if "UL" in flow_object._airfoil:
+            print("    Design lift coefficient: {0}".format(geom_dict["CL_design"]))
+        print("".join(["-"]*9))
+
+    # Cylinder
+    elif "cylinder_radius" in list(geom_dict.keys()):
+        airfoil = False
+        flow_object = CylinderInComplexPotentialFlow(**geom_dict)
 
     # Run commands
     for key, value in input_dict["run_commands"].items():
@@ -723,12 +789,11 @@ if __name__=="__main__":
         if not value:
             continue
 
-        # Get params
         oper_dict = input_dict["operating"]
-        sweep_dict = input_dict["alpha_sweep"]
         plot_dict = input_dict["plot"]
 
         if key == "alpha_sweep":
+            sweep_dict = input_dict["alpha_sweep"]
 
             # Start table
             print("\nSweeping in alpha...")
@@ -746,31 +811,36 @@ if __name__=="__main__":
             for a in np.linspace(a_start, a_end, n):
 
                 # Set condition
-                airfoil.set_condition(alpha=a, V=V)
+                if airfoil:
+                    flow_object.set_condition(alpha=a, V=V)
+                else:
+                    flow_object.set_condition(**oper_dict)
 
                 # Solve
-                coefs = airfoil.solve()
+                coefs = flow_object.solve()
                 print("{:<20.12}{:<20.12}{:<20.12}{:<20.12}".format(a, *coefs))
 
         elif key == "plot_streamlines":
 
             # Set condition
             print("\nPlotting streamlines...")
-            oper_dict = input_dict["operating"]
-            a = oper_dict["alpha[deg]"]
-            airfoil.set_condition(alpha=a, V=oper_dict["freestream_velocity"])
+            a = oper_dict.get("angle_of_attack[deg]", 0.0)
+            if airfoil:
+                flow_object.set_condition(alpha=a, V=oper_dict["freestream_velocity"])
+            else:
+                flow_object.set_condition(**oper_dict)
 
             # Solve
-            coefs = airfoil.solve()
+            coefs = flow_object.solve()
             #print("{:<20.12}{:<20.12}{:<20.12}{:<20.12}".format(a, *coefs))
 
             # Plot
-            airfoil.plot_streamlines(plot_dict["x_start"],
-                                     [plot_dict["x_lower_limit"], plot_dict["x_upper_limit"]],
-                                     plot_dict["delta_s"],
-                                     plot_dict["n_lines"],
-                                     plot_dict["delta_y"],
-                                     plot_stagnation=True)
+            flow_object.plot_streamlines(plot_dict["x_start"],
+                                         [plot_dict["x_lower_limit"], plot_dict["x_upper_limit"]],
+                                         plot_dict["delta_s"],
+                                         plot_dict["n_lines"],
+                                         plot_dict["delta_y"],
+                                         plot_stagnation=True)
 
         elif key == "plot_pressure":
 
@@ -778,16 +848,17 @@ if __name__=="__main__":
             print("\nPlotting pressure...")
             oper_dict = input_dict["operating"]
             a = oper_dict["alpha[deg]"]
-            airfoil.set_condition(alpha=a, V=oper_dict["freestream_velocity"])
+            if airfoil:
+                flow_object.set_condition(alpha=a, V=oper_dict["freestream_velocity"])
+            else:
+                flow_object.set_condition(**oper_dict)
 
             # Solve
-            coefs = airfoil.solve()
+            coefs = flow_object.solve()
             #print("{:<20.12}{:<20.12}{:<20.12}{:<20.12}".format(a, *coefs))
 
-            # Plot
-            if plot_dict.get("plot_C_P", True):
-                airfoil.plot_C_P()
+            flow_object.plot_C_P()
         
         elif key == "export_geometry":
             print("\nExporting geometry...")
-            airfoil.export_geometry()
+            flow_object.export_geometry()
