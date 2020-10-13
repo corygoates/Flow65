@@ -1,7 +1,7 @@
 {
     "geometry" : {
         "cylinder_radius" : 2.0,
-        "z0" : [2.0,2.0]
+        "z0" : [-2.0,2.0]
     },
     "operating" : {
         "freestream_velocity" : 10.0,

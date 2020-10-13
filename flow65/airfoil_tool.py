@@ -710,7 +710,7 @@ class CylinderInComplexPotentialFlow(ObjectInPotentialFlow):
 
         # Set params
         self._R = kwargs.get("cylinder_radius", 1.0)
-        z0 = kwargs.get("z", [0.0, 0.0])
+        z0 = kwargs.get("z0", [0.0, 0.0])
         self._z0 = np.complex(z0[0], z0[1])
 
         # Call parent initializer
@@ -722,9 +722,9 @@ class CylinderInComplexPotentialFlow(ObjectInPotentialFlow):
 
         # Get y values
         dx = x-np.real(self._z0)
-        y_upper = np.sqrt(self._R**2-dx**2)
-        y_lower = -np.sqrt(self._R**2-dx**2)
-        y_camber = np.zeros_like(x)
+        y_upper = np.sqrt(self._R**2-dx**2)+np.imag(self._z0)
+        y_lower = -np.sqrt(self._R**2-dx**2)+np.imag(self._z0)
+        y_camber = np.zeros_like(x)+np.imag(self._z0)
         
         return np.array([x, y_camber]).T, np.array([x, y_upper]).T, np.array([x, y_lower]).T
 
