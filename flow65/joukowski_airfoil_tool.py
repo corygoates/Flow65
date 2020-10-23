@@ -312,8 +312,8 @@ class ObjectInPotentialFlow:
             plt.plot(camber[:,0], camber[:,1], 'k--')
             plt.plot(upper[:,0], upper[:,1], 'k')
             plt.plot(lower[:,0], lower[:,1], 'k')
-            plt.plot(self._zeta_to_z(self._R-self._e), 0.0, 'kx')
-            plt.plot(self._zeta_to_z(-self._R+self._e), 0.0, 'kx')
+            plt.plot(np.real(self._zeta_to_z(self._R-self._e)), 0.0, 'kx')
+            plt.plot(np.real(self._zeta_to_z(-self._R+self._e)), 0.0, 'kx')
 
             # Plot in zeta plane
             upper, lower = self._geometry_in_zeta(x_space)
@@ -321,6 +321,7 @@ class ObjectInPotentialFlow:
             plt.plot(lower[:,0], lower[:,1], 'r--')
             plt.plot(self._R-self._e, 0.0, 'rx')
             plt.plot(-self._R+self._e, 0.0, 'rx')
+            plt.plot(np.real(self._z0), np.imag(self._z0), 'ro')
 
         # Determine stagnation points
         if plot_stagnation:
@@ -374,9 +375,10 @@ class ObjectInPotentialFlow:
         print("Done")
 
         # Format and show plot
+        plt.gca().set_aspect('equal', adjustable='box')
         plt.ylim([y_start-dy*(n+1), y_start+dy*(n+1)])
         plt.xlim(x_lims)
-        plt.gca().set_aspect('equal', adjustable='box')
+        plt.gca().grid(True, which='both')
         plt.xlabel('x')
         plt.ylabel('y')
         plt.show()
@@ -399,7 +401,7 @@ class JoukowskiCylinder(ObjectInPotentialFlow):
     cylinder_radius : float
         Radius of the cylinder.
 
-    z0 : list
+    zeta_0 : list
         Complex location of the cylinder center. Defaults to [0.0, 0.0].
 
     epsilon : float
@@ -410,7 +412,7 @@ class JoukowskiCylinder(ObjectInPotentialFlow):
 
         # Set params
         self._R = kwargs.get("cylinder_radius", 1.0)
-        z0 = kwargs.get("z0", [0.0, 0.0])
+        z0 = kwargs.get("zeta_0", [0.0, 0.0])
         self._z0 = np.complex(z0[0], z0[1])
         self._e = kwargs.get("epsilon", 0.0)
 
@@ -419,9 +421,9 @@ class JoukowskiCylinder(ObjectInPotentialFlow):
 
 
     def _geometry_in_zeta(self, xi):
-        theta = np.arccos(xi/self._R)
-        y_u = self._R*np.sin(theta)
-        y_l = self._R*np.sin(2.0*np.pi-theta)
+        theta = np.arccos((xi-np.real(self._z0))/self._R)
+        y_u = self._R*np.sin(theta)+np.imag(self._z0)
+        y_l = self._R*np.sin(2.0*np.pi-theta)+np.imag(self._z0)
         return np.array([xi, y_u]).T, np.array([xi, y_l]).T
 
 
@@ -429,23 +431,16 @@ class JoukowskiCylinder(ObjectInPotentialFlow):
         # Returns the camber line and the upper and lower surface coordinates at the x location given
 
         # Determine theta in the zeta plane
-        theta = np.arccos(xi/self._R)
-        zeta_u = xi+1.0j*self._R*np.sin(theta)
-        zeta_l = xi+1.0j*self._R*np.sin(2.0*np.pi-theta)
+        theta = np.arccos((xi-np.real(self._z0))/self._R)
+        zeta_u = self._z0+self._R*np.exp(1.0j*(theta))
+        zeta_l = self._z0+self._R*np.exp(1.0j*(2.0*np.pi-theta))
 
         # Determine z locations
-        z_u = self._zeta_to_z(zeta_u+self._z0)
-        z_l = self._zeta_to_z(zeta_l+self._z0)
+        z_u = self._zeta_to_z(zeta_u)
+        z_l = self._zeta_to_z(zeta_l)
+        z_c = 0.5*(z_u+z_l)
 
-        # Get y values
-        y_upper = np.imag(z_u)
-        y_lower = np.imag(z_l)
-        y_camber = np.zeros_like(xi)
-
-        # Get x values
-        x = np.real(z_u)
-        
-        return np.array([x, y_camber]).T, np.array([x, y_upper]).T, np.array([x, y_lower]).T
+        return np.array([np.real(z_c), np.imag(z_c)]).T, np.array([np.real(z_u), np.imag(z_u)]).T, np.array([np.real(z_l), np.imag(z_l)]).T
 
 
     def _velocity(self, point):
