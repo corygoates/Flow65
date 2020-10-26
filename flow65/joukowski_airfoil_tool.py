@@ -416,8 +416,31 @@ class JoukowskiCylinder(ObjectInPotentialFlow):
         self._z0 = np.complex(z0[0], z0[1])
         self._e = kwargs.get("epsilon", 0.0)
 
-        # Call parent initializer
         super().__init__(x_le=np.real(self._z0)-self._R, x_te=np.real(self._z0)+self._R)
+
+        # Get leading and trailing edge locations
+        self._z_te = 2.0*(np.sqrt(self._R**2-np.imag(self._z0)**2)+np.real(self._z0))
+        self._z_le = -2.0*(self._R**2-np.imag(self._z0)**2+np.real(self._z0)**2)/(np.sqrt(self._R**2-np.imag(self._z0)**2)-np.real(self._z0))
+        self._c = np.real(self._z_te-self._z_le)
+        self._z_c4 = self._z_le+0.25*self._c
+
+
+    def set_condition(self, **kwargs):
+        """Sets the operating condition for the airfoil
+
+        Parameters
+        ----------
+        freestream_velocity : float
+            Freestream velocity.
+
+        angle_of_attack[deg] : float
+            Angle of attack in degrees.
+        """
+        
+        # Set params
+        self._V = kwargs.get("freestream_velocity")
+        self._alpha = np.radians(kwargs.get("angle_of_attack[deg]"))
+        self._gamma = 4.0*np.pi*self._V*(np.sqrt(self._R**2-np.imag(self._z0)**2)*np.sin(self._alpha)+np.imag(self._z0)*np.cos(self._alpha))
 
 
     def _geometry_in_zeta(self, xi):
@@ -478,6 +501,37 @@ class JoukowskiCylinder(ObjectInPotentialFlow):
 
         return np.where(np.abs(zeta2-self._z0)>np.abs(zeta1-self._z0), zeta2, zeta1)
 
+
+    def solve(self):
+        """Solves for the airfoil coefficients at the current condition.
+
+        Returns
+        -------
+        CL
+
+        Cm0
+
+        Cm_c4
+        """
+
+        # Lift coefficient
+        CL = 2.0*self._gamma/(self._V*self._c)
+
+        # Moment coefficient about origin
+        x0 = np.real(self._z0)
+        y0 = np.imag(self._z0)
+        R = self._R
+        Cm0 = 0.25*np.pi*((R**2-y0**2-x0**2)/(R**2-y0**2))**2*np.sin(2.0*self._alpha)
+        Cm0 -= 0.25*CL*(x0*np.cos(self._alpha)+y0*np.sin(self._alpha))/(R**2-y0**2)*(np.sqrt(R**2-y0**2)-x0)
+
+        # Moment coefficient about quarter-chord
+        x_c4 = np.real(self._z_c4)
+        y_c4 = np.imag(self._z_c4)
+        Cm_c4 = 0.25*np.pi*((R**2-y0**2-x0**2)/(R**2-y0**2))**2*np.sin(2.0*self._alpha)
+        Cm_c4 += 0.25*CL*((x_c4-x0)*np.cos(self._alpha)+(y_c4-y0)*np.sin(self._alpha))/(R**2-y0**2)*(np.sqrt(R**2-y0**2)-x0)
+
+        return CL, Cm0, Cm_c4
+
     
 if __name__=="__main__":
 
@@ -486,10 +540,35 @@ if __name__=="__main__":
     with open(input_file, 'r') as input_handle:
         input_dict = json.load(input_handle)
 
-    # Initialize object
+    # get params
     geom_dict = input_dict["geometry"]
-    airfoil = False
-    flow_object = JoukowskiCylinder(**geom_dict)
+    airfoil = geom_dict["type"] == "airfoil"
+
+    # Initialize object
+    if airfoil:
+
+        # Get design parameters
+        CL_d = geom_dict["design_CL"]
+        t_d = geom_dict["design_thickness"]
+        R = geom_dict["cylinder_radius"]
+
+        # Determine complex offset
+        xi_0 = -4.0*R*t_d/(3.0*np.sqrt(3.0))
+        eta_0 = CL_d*R/(2.0*np.pi*(1.0-xi_0/R))
+
+        # Determine eccentricity
+        eps = R-np.sqrt(R**2-eta_0**2)-xi_0
+
+        # Initialize
+        flow_object = JoukowskiCylinder(cylinder_radius=R, zeta_0=[xi_0, eta_0], epsilon=eps)
+
+        # Check leading and trailing edge locations
+        print("z_LE: {0}".format(flow_object._z_le))
+        print("z_TE: {0}".format(flow_object._z_te))
+        print("z_c4: {0}".format(flow_object._z_c4))
+
+    else:
+        flow_object = JoukowskiCylinder(**geom_dict)
 
     # Run commands
     for key, value in input_dict["run_commands"].items():
@@ -540,6 +619,10 @@ if __name__=="__main__":
                                          plot_dict["n_lines"],
                                          plot_dict["delta_y"],
                                          plot_stagnation=True)
+            coefs = flow_object.solve()
+            print("CL: {0}".format(coefs[0]))
+            print("Cm0: {0}".format(coefs[1]))
+            print("Cm_c4: {0}".format(coefs[2]))
 
         elif key == "plot_pressure":
 

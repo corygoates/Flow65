@@ -1,5 +1,6 @@
 {
     "geometry" : {
+        "type" : "cylinder",
         "cylinder_radius" : 2.0,
         "zeta_0" : [-0.5, 0.5],
         "epsilon" : 0.8
