@@ -302,52 +302,28 @@ class ObjectInPotentialFlow:
         # Initialize plot
         plt.figure()
 
-        # Plot geometry
+        # Plot geometry in z plane
         y_start = 0.0
-        if hasattr(self, "_airfoil") and self._airfoil == "file":
-            plt.plot(self._p_N[:,0], self._p_N[:,1], 'k')
-        else:
-            x_space = np.linspace(self._x_le, self._x_te, 1000)
-            camber, upper, lower = self._geometry(x_space)
-            plt.plot(camber[:,0], camber[:,1], 'k--')
-            plt.plot(upper[:,0], upper[:,1], 'k')
-            plt.plot(lower[:,0], lower[:,1], 'k')
-            plt.plot(np.real(self._zeta_to_z(self._R-self._e)), 0.0, 'kx')
-            plt.plot(np.real(self._zeta_to_z(-self._R+self._e)), 0.0, 'kx')
+        x_space = np.linspace(self._x_le, self._x_te, 1000)
+        camber, upper, lower = self._geometry(x_space)
+        plt.plot(camber[:,0], camber[:,1], 'k--')
+        plt.plot(upper[:,0], upper[:,1], 'k')
+        plt.plot(lower[:,0], lower[:,1], 'k')
+        plt.plot(np.real(self._zeta_to_z(self._R-self._e)), 0.0, 'kx')
+        plt.plot(np.real(self._zeta_to_z(-self._R+self._e)), 0.0, 'kx')
 
-            # Plot in zeta plane
-            upper, lower = self._geometry_in_zeta(x_space)
-            plt.plot(upper[:,0], upper[:,1], 'r--')
-            plt.plot(lower[:,0], lower[:,1], 'r--')
-            plt.plot(self._R-self._e, 0.0, 'rx')
-            plt.plot(-self._R+self._e, 0.0, 'rx')
-            plt.plot(np.real(self._z0), np.imag(self._z0), 'ro')
+        # Plot in zeta plane
+        upper, lower = self._geometry_in_zeta(x_space)
+        plt.plot(upper[:,0], upper[:,1], 'r--')
+        plt.plot(lower[:,0], lower[:,1], 'r--')
+        plt.plot(self._R-self._e, 0.0, 'rx')
+        plt.plot(-self._R+self._e, 0.0, 'rx')
+        plt.plot(np.real(self._z0), np.imag(self._z0), 'ro')
 
         # Determine stagnation points
         if plot_stagnation:
             print("Locating stagnation points...", end='', flush=True)
-            if hasattr(self, "_airfoil") and self._airfoil == "file":
-
-                # Determine normal vectors at control points
-                self._n = np.zeros((self._N, 2))
-                self._n[:,0] += -(self._p_N[1:,1]-self._p_N[:-1,1])/self._l
-                self._n[:,1] += (self._p_N[1:,0]-self._p_N[:-1,0])/self._l
-
-                # Offset control points
-                eps = 1e-3
-                V_points = self._p_C+self._n*eps
-
-                # Get V
-                V = np.zeros((self._N,2))
-                for i, p in enumerate(V_points):
-                    V[i],_ = self._velocity(p)
-
-                # Get stagnation points
-                stag_fwd = V_points[np.argmin(V[self._N//4:self._N-self._N//4])]
-                stag_bwd = [self._x_te, 0.0]
-
-            else:
-                stag_fwd, stag_bwd = self._stagnation()
+            stag_fwd, stag_bwd = self._stagnation()
             print("Done")
 
             # Plot stagnation streamlines
@@ -532,6 +508,82 @@ class JoukowskiCylinder(ObjectInPotentialFlow):
 
         return CL, Cm0, Cm_c4
 
+
+    def export_geometry(self, N, filename):
+        """Exports the discrete geometry of the airfoil.
+
+        Parameters
+        ---------
+        N : int
+            Number of points.
+
+        filename : str
+            Filename to write geometry to.
+        """
+
+        # Generate even number of points
+        if N%2 == 0:
+            d_theta = np.pi/((N/2)-0.5)
+            theta = np.linspace(0.5*d_theta, np.pi, int(N/2))
+            x = self._x_le+0.5*(1.0-np.cos(theta))*(self._x_te-self._x_le)
+
+        # Generate odd number of points
+        else:
+            theta = np.linspace(0.0, np.pi, int(N/2)+1)
+            x = self._x_le+0.5*(1.0-np.cos(theta))*(self._x_te-self._x_le)
+
+        # Get raw outline points
+        _, p_upper, p_lower = self._geometry(x)
+
+        # Initialize node array
+        self._p_N = np.zeros((N, 2))
+
+        # Organize nodes
+        if N%2 == 0:
+            self._p_N[:int(N/2),:] = p_lower[::-1,:]
+            self._p_N[int(N/2):,:] = p_upper
+        else:
+            self._p_N[:int(N/2)+1,:] = p_lower[::-1,:]
+            self._p_N[int(N/2)+1:,:] = p_upper[1:,:]
+
+        # Export points
+        header = "{:<20} {:<20}".format('x', 'y')
+        fmt_str = "%20.12e %20.12e"
+        np.savetxt(filename, self._p_N, fmt=fmt_str, header=header)
+
+
+class JoukowskiAirfoil(JoukowskiCylinder):
+    """Uses the Joukowski transformation to create an airfoil.
+
+    Parameters
+    ----------
+    design_CL : float
+        Design lift coefficient at 0 degrees angle of attack.
+
+    design_thickness : float
+        Design thickness as a percentage of the chord.
+    
+    cylinder_radius : float
+        Cylinder radius.
+    """
+
+    def __init__(self, **kwargs):
+
+        # Get kwargs
+        CL_d = kwargs["design_CL"]
+        t_d = kwargs["design_thickness"]
+        R = kwargs["cylinder_radius"]
+
+        # Determine complex offset
+        xi_0 = -4.0*R*t_d/(3.0*np.sqrt(3.0))
+        eta_0 = CL_d*R/(2.0*np.pi*(1.0-xi_0/R))
+
+        # Determine eccentricity
+        eps = R-np.sqrt(R**2-eta_0**2)-xi_0
+
+        # Initialize
+        super().__init__(cylinder_radius=R, zeta_0=[xi_0, eta_0], epsilon=eps)
+
     
 if __name__=="__main__":
 
@@ -547,20 +599,7 @@ if __name__=="__main__":
     # Initialize object
     if airfoil:
 
-        # Get design parameters
-        CL_d = geom_dict["design_CL"]
-        t_d = geom_dict["design_thickness"]
-        R = geom_dict["cylinder_radius"]
-
-        # Determine complex offset
-        xi_0 = -4.0*R*t_d/(3.0*np.sqrt(3.0))
-        eta_0 = CL_d*R/(2.0*np.pi*(1.0-xi_0/R))
-
-        # Determine eccentricity
-        eps = R-np.sqrt(R**2-eta_0**2)-xi_0
-
-        # Initialize
-        flow_object = JoukowskiCylinder(cylinder_radius=R, zeta_0=[xi_0, eta_0], epsilon=eps)
+        flow_object = JoukowskiAirfoil(**geom_dict)
 
         # Check leading and trailing edge locations
         print("z_LE: {0}".format(flow_object._z_le))
@@ -636,4 +675,4 @@ if __name__=="__main__":
         
         elif key == "export_geometry":
             print("\nExporting geometry...")
-            flow_object.export_geometry()
+            flow_object.export_geometry(geom_dict["output_points"], value)

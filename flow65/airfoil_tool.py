@@ -394,13 +394,17 @@ class VortexPanelAirfoil(ObjectInPotentialFlow):
     airfoil : str
         4-digit NACA designation of the airfoil or "ULxx" to specify a
         uniform load airfoil with a NACA thickness distribution with
-        maximum thickness of xx. Defaults to "0012".
+        maximum thickness of xx. Defaults to "0012". Can also be "file",
+        in which cases "filename" must be given.
 
     CL_design : float
         Design CL at zero angle of attack for uniform load airfoil.
 
     trailing_edge : str
         "open" or "closed". Determines the equations for the thickness distribution.
+
+    filename : str, optional
+        File to import outline points from.
     """
 
     def __init__(self, **kwargs):
@@ -600,11 +604,13 @@ class VortexPanelAirfoil(ObjectInPotentialFlow):
                                    +self._p_N[:-1,1]*self._gamma[1:]
                                    +self._p_N[1:,1]*self._gamma[:-1]
                                    +2.0*self._p_N[1:,1]*self._gamma[1:]))
-        Cm_le = -1.0/(3.0*self._c**2*self._V)*np.sum(integrand)
+        Cm0 = -1.0/(3.0*self._c**2*self._V)*np.sum(integrand)
+
+        Cm_le = Cm0+self._x_le/self._c*CL*C_a
 
         Cm_c4 = Cm_le+0.25*CL*C_a
 
-        return CL, Cm_le, Cm_c4
+        return CL, Cm_le, Cm_c4, Cm0
 
 
     def plot_C_P(self):

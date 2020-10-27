@@ -3,7 +3,8 @@
         "type" : "airfoil",
         "cylinder_radius" : 2.0,
         "design_CL" : 0.261,
-        "design_thickness" : 0.12
+        "design_thickness" : 0.12,
+        "output_points" : 10
     },
     "operating" : {
         "freestream_velocity" : 10.0,
@@ -19,6 +20,7 @@
         "delta_y" : 0.4
     },
     "run_commands" : {
-        "plot_streamlines" : true
+        "plot_streamlines" : false,
+        "export_geometry" : "jkski_10.txt"
     }
 }
