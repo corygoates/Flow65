@@ -392,13 +392,13 @@ class JoukowskiCylinder(ObjectInPotentialFlow):
         self._z0 = np.complex(z0[0], z0[1])
         self._e = kwargs.get("epsilon", 0.0)
 
-        super().__init__(x_le=np.real(self._z0)-self._R, x_te=np.real(self._z0)+self._R)
-
         # Get leading and trailing edge locations
         self._z_te = 2.0*(np.sqrt(self._R**2-np.imag(self._z0)**2)+np.real(self._z0))
         self._z_le = -2.0*(self._R**2-np.imag(self._z0)**2+np.real(self._z0)**2)/(np.sqrt(self._R**2-np.imag(self._z0)**2)-np.real(self._z0))
         self._c = np.real(self._z_te-self._z_le)
         self._z_c4 = self._z_le+0.25*self._c
+
+        super().__init__(x_le=np.real(self._z_le), x_te=np.real(self._z_te))
 
 
     def set_condition(self, **kwargs):
@@ -521,37 +521,38 @@ class JoukowskiCylinder(ObjectInPotentialFlow):
             Filename to write geometry to.
         """
 
-        # Generate even number of points
+        # Determine angles to leading and trailing edges in zeta plane
+        y0 = np.imag(self._z0)
+        x = np.sqrt(self._R**2-y0**2)
+        theta_t = np.arctan2(-y0, x)
+        theta_l = np.arctan2(-y0, -x)
+        if theta_l < theta_t:
+            theta_l += 2.0*np.pi
+
+        # Get theta distribution in zeta plane
+        theta = np.zeros(N)
         if N%2 == 0:
-            d_theta = np.pi/((N/2)-0.5)
-            theta = np.linspace(0.5*d_theta, np.pi, int(N/2))
-            x = self._x_le+0.5*(1.0-np.cos(theta))*(self._x_te-self._x_le)
-
-        # Generate odd number of points
+            dtheta_u = (theta_l-theta_t)/(N//2-0.5)
+            dtheta_l = (2.0*np.pi+theta_t-theta_l)/(N//2-0.5)
+            theta[:N//2] = theta_t+dtheta_u*np.arange(N//2)
+            theta[N//2:] = theta_l+dtheta_l*(0.5+np.arange(N//2))
         else:
-            theta = np.linspace(0.0, np.pi, int(N/2)+1)
-            x = self._x_le+0.5*(1.0-np.cos(theta))*(self._x_te-self._x_le)
+            dtheta_u = (theta_l-theta_t)/(N//2)
+            dtheta_l = (2.0*np.pi+theta_t-theta_l)/(N//2)
+            theta[:N//2+1] = theta_t+dtheta_u*np.arange(N//2+1)
+            theta[N//2+1:] = theta_l+dtheta_l*np.arange(1,N//2+1)
 
-        # Get raw outline points
-        _, p_upper, p_lower = self._geometry(x)
+        # Get points in z
+        zeta_points = self._z0+self._R*np.exp(1.0j*theta)
+        z_points = self._zeta_to_z(zeta_points)-self._z_le
 
-        # Initialize point array
+        # Parse out real and imaginary points
         points = np.zeros((N, 2))
-
-        # Organize nodes
-        if N%2 == 0:
-            points[:int(N/2),:] = p_lower[::-1,:]
-            points[int(N/2):,:] = p_upper
-
-            points = points-0.5*(points[int(N/2)-1]+points[int(N/2)])
-        else:
-            points[:int(N/2)+1,:] = p_lower[::-1,:]
-            points[int(N/2)+1:,:] = p_upper[1:,:]
-
-            points = points-points[int(N/2)]
+        points[:,0] = np.real(z_points)
+        points[:,1] = np.imag(z_points)
 
         # Scale to unit chord
-        points = points/self._c
+        points /= self._c
 
         # Export points
         header = "{:<30} {:<30}".format('x', 'y')

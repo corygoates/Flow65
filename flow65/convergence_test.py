@@ -12,11 +12,11 @@ from airfoil_tool import VortexPanelAirfoil
 if __name__=="__main__":
 
     # Initialize analytic airfoil
-    airfoil_a = VortexPanelAirfoil(airfoil="08", trailing_edge="open", n_points=10, CL_design=0.25)
+    airfoil_a = VortexPanelAirfoil(airfoil="UL08", trailing_edge="closed", n_points=10, CL_design=0.25)
 
     # Initialize storage
-    N_cases = 1000
-    grids = np.unique(np.logspace(1, 2.5, num=N_cases).astype(int))
+    N_cases = 100
+    grids = np.unique(np.logspace(1, 3, num=N_cases).astype(int))
     CL = np.zeros(grids.size)
     Cm0 = np.zeros(grids.size)
     Cm_c4 = np.zeros(grids.size)

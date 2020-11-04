@@ -14,15 +14,13 @@ if __name__=="__main__":
     # Initialize Joukowski airfoil
     airfoil_j = JoukowskiAirfoil(design_CL=0.261, design_thickness=0.12, cylinder_radius=2.0)
     airfoil_j.set_condition(**{"freestream_velocity":10.0, "angle_of_attack[deg]":0.0})
-    x_le = np.real(airfoil_j._z_le)
-    x_te = np.real(airfoil_j._z_te)
 
     # Get analytic coefficients
     CL_a, Cm0_a, Cm_c4_a = airfoil_j.solve()
 
     # Initialize storage
-    N_cases = 1000
-    grids = np.unique(np.logspace(1, 2.5, num=N_cases).astype(int))
+    N_cases = 50
+    grids = np.unique(np.logspace(1, 3, num=N_cases).astype(int))
     CL = np.zeros(grids.size)
     Cm0 = np.zeros(grids.size)
     Cm_c4 = np.zeros(grids.size)
@@ -40,7 +38,7 @@ if __name__=="__main__":
 
         # Get coefficients
         CL[i], _, Cm_c4[i], Cm0[i] = airfoil_v.solve()
-        #airfoil_v.plot_streamlines(-5.0, [-5.0, 5.0], 0.05, 10, 0.25)
+        #airfoil_v.plot_streamlines(-5.0, [-5.0, 5.0], 0.05, 0, 0.25)
 
         # Cleanup
         os.remove(filename)

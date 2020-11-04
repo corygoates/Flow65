@@ -669,7 +669,8 @@ class VortexPanelAirfoil(ObjectInPotentialFlow):
             with np.errstate(invalid='ignore', divide='ignore'):
                 const = self._CL_d*self._c/(4.0*np.pi)
                 y_c = const*np.where((x_c != 0.0) & (x_c != 1.0), ((x_c-1.0)*np.log(1.0-x_c)-x_c*np.log(x_c)), 0.0)
-                dy_c_dx = const*np.where(x_c != 1.0, np.where(x_c != 0.0, np.log(1.0-x_c)-np.log(x_c), 0.0), np.log(1e-15))
+                dy_c_dx = const*np.where(x_c != 0.0, np.log(1.0-x_c)-np.log(x_c), 0.0)
+                dy_c_dx[-1] = dy_c_dx[-2]
 
 
         # Thickness
@@ -700,62 +701,6 @@ class VortexPanelAirfoil(ObjectInPotentialFlow):
         np.savetxt(filename, self._p_N, fmt=fmt_str, header=header)
 
 
-class CylinderInComplexPotentialFlow(ObjectInPotentialFlow):
-    """A cylinder in potential flow.
-
-    Parameters
-    ----------
-    cylinder_radius : float
-        Radius of the cylinder.
-
-    z : list
-        Complex location of the cylinder center. Defaults to [0.0, 0.0].
-    """
-
-    def __init__(self, **kwargs):
-
-        # Set params
-        self._R = kwargs.get("cylinder_radius", 1.0)
-        z0 = kwargs.get("z0", [0.0, 0.0])
-        self._z0 = np.complex(z0[0], z0[1])
-
-        # Call parent initializer
-        super().__init__(x_le=np.real(self._z0)-self._R, x_te=np.real(self._z0)+self._R)
-
-
-    def _geometry(self, x):
-        # Returns the camber line and the upper and lower surface coordinates at the x location given
-
-        # Get y values
-        dx = x-np.real(self._z0)
-        y_upper = np.sqrt(self._R**2-dx**2)+np.imag(self._z0)
-        y_lower = -np.sqrt(self._R**2-dx**2)+np.imag(self._z0)
-        y_camber = np.zeros_like(x)+np.imag(self._z0)
-        
-        return np.array([x, y_camber]).T, np.array([x, y_upper]).T, np.array([x, y_lower]).T
-
-
-    def _velocity(self, point):
-        # Returns the velocity components at the Cartesian coordinates given
-
-        # Transform to complex
-        z = np.complex(point[0], point[1])
-        j = np.complex(0.0, 1.0)
-
-        # Get complex velocity
-        w = self._V*(np.exp(-j*self._alpha)+j*self._gamma/(2.0*np.pi*self._V*(z-self._z0))-self._R**2*np.exp(j*self._alpha)/(z-self._z0)**2)
-
-        Vx = np.real(w)
-        Vy = -np.imag(w)
-        V = np.sqrt(Vx*Vx+Vy*Vy)
-        return np.array([Vx, Vy]), 1.0-V*V/self._V**2
-
-    
-    def solve(self):
-        """Determine the coefficients."""
-        return self._gamma/(self._V*self._c)
-
-
 if __name__=="__main__":
 
     # Get input
@@ -782,11 +727,6 @@ if __name__=="__main__":
         if "UL" in flow_object._airfoil:
             print("    Design lift coefficient: {0}".format(geom_dict["CL_design"]))
         print("".join(["-"]*9))
-
-    # Cylinder
-    elif "cylinder_radius" in list(geom_dict.keys()):
-        airfoil = False
-        flow_object = CylinderInComplexPotentialFlow(**geom_dict)
 
     # Run commands
     for key, value in input_dict["run_commands"].items():
