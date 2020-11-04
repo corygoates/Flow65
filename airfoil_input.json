@@ -1,14 +1,13 @@
 {
     "geometry" : {
-        "airfoil" : "file",
-        "CL_design" : 0.2593304460915939,
-        "filename" : "2412.txt",
+        "airfoil" : "UL08",
+        "CL_design" : 0.25,
         "trailing_edge" : "closed",
         "n_points" : 200
     },
     "operating" : {
         "freestream_velocity" : 10.0,
-        "alpha[deg]" : 0.0
+        "alpha[deg]" : 5.0
     },
     "alpha_sweep" : {
         "start[deg]" : -12.0,
@@ -20,13 +19,13 @@
         "x_lower_limit" : -1.0,
         "x_upper_limit" : 2.0,
         "delta_s" : 0.01,
-        "n_lines" : 5,
+        "n_lines" : 20,
         "delta_y" : 0.1
     },
     "run_commands" : {
         "plot_streamlines" : true,
-        "plot_pressure" : true,
-        "alpha_sweep" : true,
-        "export_geometry" : true
+        "plot_pressure" : false,
+        "alpha_sweep" : false,
+        "export_geometry" : false
     }
 }

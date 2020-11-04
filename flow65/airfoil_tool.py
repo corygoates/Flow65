@@ -830,7 +830,7 @@ if __name__=="__main__":
 
             # Set condition
             print("\nPlotting streamlines...")
-            a = oper_dict.get("angle_of_attack[deg]", 0.0)
+            a = oper_dict.get("alpha[deg]", 0.0)
             if airfoil:
                 flow_object.set_condition(alpha=a, V=oper_dict["freestream_velocity"])
             else:
@@ -838,7 +838,7 @@ if __name__=="__main__":
 
             # Solve
             coefs = flow_object.solve()
-            #print("{:<20.12}{:<20.12}{:<20.12}{:<20.12}".format(a, *coefs))
+            print("{:<20.12}{:<20.12}{:<20.12}{:<20.12}".format(a, *coefs))
 
             # Plot
             flow_object.plot_streamlines(plot_dict["x_start"],

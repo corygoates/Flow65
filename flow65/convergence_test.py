@@ -11,14 +11,8 @@ from airfoil_tool import VortexPanelAirfoil
 
 if __name__=="__main__":
 
-    # Initialize Joukowski airfoil
-    airfoil_j = JoukowskiAirfoil(design_CL=0.261, design_thickness=0.12, cylinder_radius=2.0)
-    airfoil_j.set_condition(**{"freestream_velocity":10.0, "angle_of_attack[deg]":0.0})
-    x_le = np.real(airfoil_j._z_le)
-    x_te = np.real(airfoil_j._z_te)
-
-    # Get analytic coefficients
-    CL_a, Cm0_a, Cm_c4_a = airfoil_j.solve()
+    # Initialize analytic airfoil
+    airfoil_a = VortexPanelAirfoil(airfoil="08", trailing_edge="open", n_points=10, CL_design=0.25)
 
     # Initialize storage
     N_cases = 1000
@@ -31,8 +25,9 @@ if __name__=="__main__":
     for i, grid in enumerate(grids):
 
         # Export geometry
-        filename = "airfoil_j_{0}.txt".format(grid)
-        airfoil_j.export_geometry(grid, filename)
+        filename = airfoil_a._airfoil+".txt"
+        airfoil_a.panel(grid)
+        airfoil_a.export_geometry()
 
         # Load vortex panel airfoil
         airfoil_v = VortexPanelAirfoil(airfoil="file", filename=filename)
@@ -48,26 +43,24 @@ if __name__=="__main__":
     # Plot CL
     fig, ((ax0, ax1), (ax2, ax3)) = plt.subplots(nrows=2, ncols=2, sharex=True)
     ax0.plot(grids, CL, 'ro')
-    ax0.plot(grids, np.ones_like(grids)*CL_a, 'b--')
     ax0.set_xscale('log')
     ax0.set_ylabel("CL")
 
     # Plot Cm_c4
     ax1.plot(grids, Cm_c4, 'ro')
-    ax1.plot(grids, np.ones_like(grids)*Cm_c4_a, 'b--')
     ax1.set_xscale('log')
     ax1.set_ylabel("Cm_c4")
 
-    # Plot difference in CL
-    CL_err = 100.0*np.abs((CL-CL_a)/CL_a)
-    ax2.loglog(grids, CL_err)
-    ax2.set_xlabel("Grid size")
-    ax2.set_ylabel("% Error in CL")
+    ## Plot difference in CL
+    #CL_err = 100.0*np.abs((CL-CL_a)/CL_a)
+    #ax2.loglog(grids, CL_err)
+    #ax2.set_xlabel("Grid size")
+    #ax2.set_ylabel("% Error in CL")
 
-    # Plot difference in Cm_c4
-    Cm_c4_err = 100.0*np.abs((Cm_c4-Cm_c4_a)/Cm_c4_a)
-    ax3.loglog(grids, Cm_c4_err)
-    ax3.set_xlabel("Grid size")
-    ax3.set_ylabel("% Error in Cm_c4")
+    ## Plot difference in Cm_c4
+    #Cm_c4_err = 100.0*np.abs((Cm_c4-Cm_c4_a)/Cm_c4_a)
+    #ax3.loglog(grids, Cm_c4_err)
+    #ax3.set_xlabel("Grid size")
+    #ax3.set_ylabel("% Error in Cm_c4")
 
     plt.show()

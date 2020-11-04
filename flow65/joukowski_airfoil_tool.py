@@ -535,21 +535,28 @@ class JoukowskiCylinder(ObjectInPotentialFlow):
         # Get raw outline points
         _, p_upper, p_lower = self._geometry(x)
 
-        # Initialize node array
-        self._p_N = np.zeros((N, 2))
+        # Initialize point array
+        points = np.zeros((N, 2))
 
         # Organize nodes
         if N%2 == 0:
-            self._p_N[:int(N/2),:] = p_lower[::-1,:]
-            self._p_N[int(N/2):,:] = p_upper
+            points[:int(N/2),:] = p_lower[::-1,:]
+            points[int(N/2):,:] = p_upper
+
+            points = points-0.5*(points[int(N/2)-1]+points[int(N/2)])
         else:
-            self._p_N[:int(N/2)+1,:] = p_lower[::-1,:]
-            self._p_N[int(N/2)+1:,:] = p_upper[1:,:]
+            points[:int(N/2)+1,:] = p_lower[::-1,:]
+            points[int(N/2)+1:,:] = p_upper[1:,:]
+
+            points = points-points[int(N/2)]
+
+        # Scale to unit chord
+        points = points/self._c
 
         # Export points
-        header = "{:<20} {:<20}".format('x', 'y')
-        fmt_str = "%20.12e %20.12e"
-        np.savetxt(filename, self._p_N, fmt=fmt_str, header=header)
+        header = "{:<30} {:<30}".format('x', 'y')
+        fmt_str = "%30.25e %30.25e"
+        np.savetxt(filename, points, fmt=fmt_str, header=header)
 
 
 class JoukowskiAirfoil(JoukowskiCylinder):

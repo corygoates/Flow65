@@ -1,15 +1,14 @@
 {
     "geometry" : {
         "type" : "airfoil",
-        "cylinder_radius" : 2.0,
-        "design_CL" : 0.261,
-        "design_thickness" : 0.12,
-        "output_points" : 10
+        "cylinder_radius" : 1.0,
+        "design_CL" : 0.25,
+        "design_thickness" : 0.08,
+        "output_points" : 200
     },
     "operating" : {
         "freestream_velocity" : 10.0,
-        "angle_of_attack[deg]" : 10.0,
-        "vortex_strength" : 80.0
+        "angle_of_attack[deg]" : 5.0
     },
     "plot" : {
         "x_start" : -5.0,
@@ -20,7 +19,7 @@
         "delta_y" : 0.4
     },
     "run_commands" : {
-        "plot_streamlines" : false,
-        "export_geometry" : "jkski_10.txt"
+        "plot_streamlines" : true,
+        "export_geometry" : "JU08.txt"
     }
 }
