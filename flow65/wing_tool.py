@@ -47,7 +47,7 @@ class Wing:
         self._z = -0.5*np.cos(self._theta)
 
         # Calculate control point trig values
-        N_range = np.arange(1, self._N+1)
+        self._N_range = np.arange(1, self._N+1)
         self._S_theta = np.sin(self._theta)
 
         # Calculate chord values
@@ -60,9 +60,9 @@ class Wing:
 
         # Get C matrix
         self._C = np.zeros((self._N, self._N))
-        self._C[0,:] = N_range**2
-        self._C[1:-1,:] = (4.0/(self._CL_a_s*self._c_b[1:-1,np.newaxis])+N_range[np.newaxis,:]/self._S_theta[1:-1,np.newaxis])*np.sin(N_range[np.newaxis,:]*self._theta[1:-1,np.newaxis])
-        self._C[-1,:] = (-1.0)**(N_range+1)*N_range**2
+        self._C[0,:] = self._N_range**2
+        self._C[1:-1,:] = (4.0/(self._CL_a_s*self._c_b[1:-1,np.newaxis])+self._N_range[np.newaxis,:]/self._S_theta[1:-1,np.newaxis])*np.sin(self._N_range[np.newaxis,:]*self._theta[1:-1,np.newaxis])
+        self._C[-1,:] = (-1.0)**(self._N_range+1)*self._N_range**2
 
         # Get C inverse (why on earth, I have no idea...)
         self._C_inv = np.linalg.inv(self._C)
@@ -71,6 +71,11 @@ class Wing:
 
         # Determine the Fourier coefficients
         self._a_n = np.linalg.solve(self._C, np.ones(self._N))
+
+        # Determine coefficient slopes
+        self._CL_a = np.pi*self._AR*self._a_n[0]
+
+        return self._CL_a
 
 
     def set_condition(self, **kwargs):
@@ -95,7 +100,10 @@ class Wing:
         # Determine lift coefficient
         self._CL = np.pi*self._AR*self._A_n[0]
 
-        return self._CL
+        # Determine drag coefficient
+        self._CD_i = np.pi*self._AR*np.sum(self._N_range*self._A_n**2)
+
+        return self._CL, self._CD_i
 
 
 if __name__=="__main__":
@@ -113,11 +121,13 @@ if __name__=="__main__":
                 CL_a_section=wing_dict["airfoil_lift_slope"])
     
     # Set up grid
-    wing.set_grid(wing_dict["nodes_per_semispan"])
+    CLa = wing.set_grid(wing_dict["nodes_per_semispan"])
 
     # Set condition
     wing.set_condition(alpha=input_dict["condition"]["alpha_root[deg]"])
 
     # Solve
-    CL = wing.solve()
+    CL, CD_i = wing.solve()
     print("CL: {0}".format(CL))
+    print("CD_i: {0}".format(CD_i))
+    print("CL,a: {0}".format(CLa))
