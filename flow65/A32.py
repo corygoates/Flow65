@@ -19,18 +19,19 @@ if __name__=="__main__":
     CL_a, Cm0_a, Cm_c4_a = airfoil_j.solve()
 
     # Initialize storage
-    N_cases = 50
-    grids = np.unique(np.logspace(1, 3, num=N_cases).astype(int))
+    N_cases = 100
+    grids = np.unique(np.logspace(1, 4, num=N_cases).astype(int))
     CL = np.zeros(grids.size)
     Cm0 = np.zeros(grids.size)
     Cm_c4 = np.zeros(grids.size)
 
     # Loop through grid sizes
     for i, grid in enumerate(grids):
+        print(grid)
 
         # Export geometry
         filename = "airfoil_j_{0}.txt".format(grid)
-        airfoil_j.export_geometry(grid, filename)
+        airfoil_j.export_geometry(grid, filename, False)
 
         # Load vortex panel airfoil
         airfoil_v = VortexPanelAirfoil(airfoil="file", filename=filename)

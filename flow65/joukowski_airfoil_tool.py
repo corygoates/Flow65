@@ -509,7 +509,7 @@ class JoukowskiCylinder(ObjectInPotentialFlow):
         return CL, Cm0, Cm_c4
 
 
-    def export_geometry(self, N, filename):
+    def export_geometry(self, N, filename, divide_top_bottom=False):
         """Exports the discrete geometry of the airfoil.
 
         Parameters
@@ -530,17 +530,20 @@ class JoukowskiCylinder(ObjectInPotentialFlow):
             theta_l += 2.0*np.pi
 
         # Get theta distribution in zeta plane
-        theta = np.zeros(N)
-        if N%2 == 0:
-            dtheta_u = (theta_l-theta_t)/(N//2-0.5)
-            dtheta_l = (2.0*np.pi+theta_t-theta_l)/(N//2-0.5)
-            theta[:N//2] = theta_t+dtheta_u*np.arange(N//2)
-            theta[N//2:] = theta_l+dtheta_l*(0.5+np.arange(N//2))
+        if divide_top_bottom:
+            theta = np.zeros(N)
+            if N%2 == 0:
+                dtheta_u = (theta_l-theta_t)/(N//2-0.5)
+                dtheta_l = (2.0*np.pi+theta_t-theta_l)/(N//2-0.5)
+                theta[:N//2] = theta_t+dtheta_u*np.arange(N//2)
+                theta[N//2:] = theta_l+dtheta_l*(0.5+np.arange(N//2))
+            else:
+                dtheta_u = (theta_l-theta_t)/(N//2)
+                dtheta_l = (2.0*np.pi+theta_t-theta_l)/(N//2)
+                theta[:N//2+1] = theta_t+dtheta_u*np.arange(N//2+1)
+                theta[N//2+1:] = theta_l+dtheta_l*np.arange(1,N//2+1)
         else:
-            dtheta_u = (theta_l-theta_t)/(N//2)
-            dtheta_l = (2.0*np.pi+theta_t-theta_l)/(N//2)
-            theta[:N//2+1] = theta_t+dtheta_u*np.arange(N//2+1)
-            theta[N//2+1:] = theta_l+dtheta_l*np.arange(1,N//2+1)
+            theta = np.linspace(theta_t, 2.0*np.pi+theta_t, N)
 
         # Get points in z
         zeta_points = self._z0+self._R*np.exp(1.0j*theta)
