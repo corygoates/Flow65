@@ -2,6 +2,8 @@ import sys
 import json
 
 import numpy as np
+import matplotlib.pyplot as plt
+
 
 class Wing:
     """A class for modeling a finite wing using the sine-series solution to Prandtl's lifting-line equation.
@@ -106,6 +108,32 @@ class Wing:
         return self._CL, self._CD_i
 
 
+    def plot_planform(self):
+        """Shows a plot of the planform."""
+
+        # Get leading and trailing edge points
+        x_le = np.zeros(self._N+2)
+        x_te = np.zeros(self._N+2)
+        x_le[1:-1] = 0.25*self._c_b
+        x_te[1:-1] = -0.75*self._c_b
+        z = np.zeros(self._N+2)
+        z[0] = self._z[0]
+        z[1:-1] = self._z
+        z[-1] = self._z[-1]
+
+        # Plot
+        plt.figure()
+        plt.plot(z, x_le, 'k-')
+        plt.plot(z, x_te, 'k-')
+        plt.plot(z, np.zeros(self._N+2), 'b-', label='c/4')
+        plt.xlabel('z/b')
+        plt.ylabel('x/b')
+        plt.title('Planform')
+        plt.gca().set_aspect('equal', adjustable='box')
+        plt.legend(loc='upper right')
+        plt.show()
+
+
 if __name__=="__main__":
 
     # Read in input
@@ -131,3 +159,7 @@ if __name__=="__main__":
     print("CL: {0}".format(CL))
     print("CD_i: {0}".format(CD_i))
     print("CL,a: {0}".format(CLa))
+
+    # Check for plot request
+    if input_dict["view"]["planform"]:
+        wing.plot_planform()
