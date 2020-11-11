@@ -75,9 +75,15 @@ class Wing:
         self._a_n = np.linalg.solve(self._C, np.ones(self._N))
 
         # Determine coefficient slopes
-        self._CL_a = np.pi*self._AR*self._a_n[0]
+        self.CL_a = np.pi*self._AR*self._a_n[0]
 
-        return self._CL_a
+        # Determine the kappa factors
+        self.K_D = np.sum(np.arange(2, self._N+1)*self._a_n[1:]**2/self._a_n[0]**2)
+        A = (1+np.pi*self._AR/self._CL_a_s)*self._a_n[0]
+        self.K_L = (1.0-A)/A
+
+        # Determine span efficiency factor
+        self.e_s = 1.0/(1.0+self.K_D)
 
 
     def set_condition(self, **kwargs):
@@ -100,12 +106,10 @@ class Wing:
         self._A_n = self._a_n*(self._alpha)
 
         # Determine lift coefficient
-        self._CL = np.pi*self._AR*self._A_n[0]
+        self.CL = np.pi*self._AR*self._A_n[0]
 
         # Determine drag coefficient
-        self._CD_i = np.pi*self._AR*np.sum(self._N_range*self._A_n**2)
-
-        return self._CL, self._CD_i
+        self.CD_i = np.pi*self._AR*np.sum(self._N_range*self._A_n**2)
 
 
     def plot_planform(self):
@@ -149,16 +153,38 @@ if __name__=="__main__":
                 CL_a_section=wing_dict["airfoil_lift_slope"])
     
     # Set up grid
-    CLa = wing.set_grid(wing_dict["nodes_per_semispan"])
+    wing.set_grid(wing_dict["nodes_per_semispan"])
 
     # Set condition
     wing.set_condition(alpha=input_dict["condition"]["alpha_root[deg]"])
 
     # Solve
-    CL, CD_i = wing.solve()
-    print("CL: {0}".format(CL))
-    print("CD_i: {0}".format(CD_i))
-    print("CL,a: {0}".format(CLa))
+    wing.solve()
+
+    print()
+    print("Wing")
+    print("    Type: {0}".format(wing._planform_type))
+    print("    Aspect Ratio: {0}".format(wing._AR))
+    try:
+        print("    Taper Ratio: {0}".format(wing._RT))
+    except AttributeError:
+        pass
+
+    print()
+    print("Condition")
+    print("    Alpha: {0} deg".format(np.degrees(wing._alpha)))
+
+    print()
+    print("Aerodynamic Coefficients")
+    print("    CL: {0}".format(wing.CL))
+    print("    CD_i: {0}".format(wing.CD_i))
+
+    print()
+    print("Performance Parameters")
+    print("    CL,a: {0}".format(wing.CL_a))
+    print("    K_L: {0}".format(wing.K_L))
+    print("    K_D: {0}".format(wing.K_D))
+    print("    Span Efficiency: {0}".format(wing.e_s))
 
     # Check for plot request
     if input_dict["view"]["planform"]:

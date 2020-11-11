@@ -1,7 +1,7 @@
 {
     "wing" : {
         "planform" : {
-            "type" : "elliptic",
+            "type" : "tapered",
             "type_options" : [["elliptic: (requires aspect_ratio)"],
                               ["tapered: (requires aspect_ratio and taper_ratio)"]],
             "aspect_ratio" : 8.0,
