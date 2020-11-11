@@ -189,3 +189,16 @@ if __name__=="__main__":
     # Check for plot request
     if input_dict["view"]["planform"]:
         wing.plot_planform()
+
+    # Write solution
+    with open("Solution.txt", 'w') as f:
+        C_str = np.array2string(wing._C)
+        C_inv_str = np.array2string(wing._C_inv)
+        a_n_str = np.array2string(wing._a_n)
+
+        print("C array", file=f)
+        print(C_str, file=f)
+        print("C_inv array", file=f)
+        print(C_inv_str, file=f)
+        print("a_n", file=f)
+        print(a_n_str, file=f)
