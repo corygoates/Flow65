@@ -130,6 +130,8 @@ class Wing:
         plt.plot(z, x_le, 'k-')
         plt.plot(z, x_te, 'k-')
         plt.plot(z, np.zeros(self._N+2), 'b-', label='c/4')
+        for i in range(self._N):
+            plt.plot([z[i+1], z[i+1]], [x_le[i+1], x_te[i+1]], 'b--')
         plt.xlabel('z/b')
         plt.ylabel('x/b')
         plt.title('Planform')
