@@ -108,11 +108,14 @@ class Wing:
         self._cf = np.zeros(self._N)
         z_in_aileron = ((self._z>self._aln_lims[0]) & (self._z<self._aln_lims[1])) | ((self._z>-self._aln_lims[1]) & (self._z<-self._aln_lims[0]))
         if self._planform_type == "elliptic":
-            self._x_h_tip = -(1.0-self._aln_cf[1]-0.25)*(4.0/(np.pi*self._AR)*np.sqrt(1.0-(2.0*self._aln_lims[1])**2))
-            self._x_h_root = -(1.0-self._aln_cf[0]-0.25)*(4.0/(np.pi*self._AR)*np.sqrt(1.0-(2.0*self._aln_lims[0])**2))
+            self._c_aln_tip = (4.0/(np.pi*self._AR)*np.sqrt(1.0-(2.0*self._aln_lims[1])**2))
+            self._c_aln_root = (4.0/(np.pi*self._AR)*np.sqrt(1.0-(2.0*self._aln_lims[0])**2))
         else:
-            self._x_h_tip = -(1.0-self._aln_cf[1]-0.25)*(2.0/(self._AR*(1.0+self._RT))*(1.0-(1.0-self._RT)*2.0*self._aln_lims[1]))
-            self._x_h_root = -(1.0-self._aln_cf[0]-0.25)*(2.0/(self._AR*(1.0+self._RT))*(1.0-(1.0-self._RT)*2.0*self._aln_lims[0]))
+            self._c_aln_tip = (2.0/(self._AR*(1.0+self._RT))*(1.0-(1.0-self._RT)*2.0*self._aln_lims[1]))
+            self._c_aln_root = (2.0/(self._AR*(1.0+self._RT))*(1.0-(1.0-self._RT)*2.0*self._aln_lims[0]))
+
+        self._x_h_tip = -(1.0-self._aln_cf[1]-0.25)*self._c_aln_tip
+        self._x_h_root = -(1.0-self._aln_cf[0]-0.25)*self._c_aln_root
 
         aln_b = (self._x_h_tip-self._x_h_root)/(self._aln_lims[1]-self._aln_lims[0])
         x_h = z_in_aileron[self._N//2:]*(self._x_h_root+(self._z[self._N//2:]-self._aln_lims[0])*aln_b)
@@ -166,8 +169,6 @@ class Wing:
         # Determine aileron and roll derivatives
         self.Cl_da = -0.25*np.pi*self._AR*self._c_n[1]
         self.Cl_p = -0.25*np.pi*self._AR*self._d_n[1]
-        print(self._C)
-        print(self._d_n)
 
 
     def set_condition(self, **kwargs):
@@ -177,23 +178,47 @@ class Wing:
         ----------
         alpha : float
             Angle of attack in degrees.
+
+        da : float
+            Aileron deflection in degrees.
+
+        p_bar : float or string
+            Nondimensional rolling rate. May be "steady" to imply the 
+            steady roll rate should be solved for.
         """
 
         # Get angle of attack
         self._alpha = np.radians(kwargs["alpha"])
+        self._da = np.radians(kwargs["da"])
+        self._p_bar = kwargs["p_bar"]
 
 
     def solve(self):
         """Solves for the aerodynamic coefficients at the current condition."""
 
+        # Determine rolling moment/rate
+        if self._p_bar == "steady":
+            self.Cl = 0.0
+            self.p_bar = -self.Cl_da*self._da/self.Cl_p
+        else:
+            self.p_bar = self._p_bar
+            self.Cl = self.Cl_da*self._da+self.Cl_p*self.p_bar
+
         # Determine Fourier coefficients dependent on condition
-        self._A_n = self._a_n*(self._alpha)-self._b_n*self._W
+        self._A_n = self._a_n*(self._alpha)-self._b_n*self._W+self._c_n*self._da+self._d_n*self.p_bar
 
         # Determine lift coefficient
         self.CL = np.pi*self._AR*self._A_n[0]
 
-        # Determine drag coefficient
-        self.CD_i = np.pi*self._AR*np.sum(self._N_range*self._A_n**2)
+        # Determine drag coefficient with and without rolling and aileron effects
+        self.CD_i = np.pi*self._AR*np.sum(self._N_range*self._A_n**2) # With
+        self.CD_i_simp = (self.CL**2*(1.0+self.K_D)-self.K_DL*self.CL*self.CL_a*self._W+self.K_Domega*(self.CL_a*self._W)**2)/(np.pi*self._AR)
+
+        # Determine yawing moment
+        C = 0.0
+        for i in range(3, self._N):
+            C += (2.0*i+1)*self._A_n[i-1]*self._A_n[i]
+        self.Cn = 0.125*self.CL*(6.0*self._A_n[1]-self.p_bar)+0.125*np.pi*self._AR*(10.0*self._A_n[1]-self.p_bar)*self._A_n[2]+0.25*np.pi*self._AR*C
 
 
     def plot_planform(self):
@@ -220,8 +245,12 @@ class Wing:
             plt.plot([z[i+1], z[i+1]], [x_le[i+1], x_te[i+1]], 'b--')
 
         # Plot ailerons
-        plt.plot(self._aln_lims, [self._x_h_root, self._x_h_tip], 'k-')
-        plt.plot([-self._aln_lims[0], -self._aln_lims[1]], [self._x_h_root, self._x_h_tip], 'k-')
+        plt.plot([self._aln_lims[0], self._aln_lims[0], self._aln_lims[1], self._aln_lims[1]],
+                 [-0.75*self._c_aln_root, self._x_h_root, self._x_h_tip, -0.75*self._c_aln_tip],
+                 'k-')
+        plt.plot([-self._aln_lims[0], -self._aln_lims[0], -self._aln_lims[1], -self._aln_lims[1]],
+                 [-0.75*self._c_aln_root, self._x_h_root, self._x_h_tip, -0.75*self._c_aln_tip],
+                 'k-')
 
         # Plot labels
         plt.xlabel('z/b')
@@ -240,6 +269,17 @@ class Wing:
         plt.xlabel("z/b")
         plt.ylabel("Washout [deg]")
         plt.title("Washout Distribution")
+        plt.show()
+
+
+    def plot_aileron(self):
+        """Plots the aileron deflection distribution on the wing."""
+
+        plt.figure()
+        plt.plot(self._z, self._e_f, 'k-')
+        plt.xlabel("z/b")
+        plt.ylabel("Aileron Effectiveness")
+        plt.title("Aileron Effectiveness")
         plt.show()
 
 
@@ -269,7 +309,10 @@ if __name__=="__main__":
     wing.set_grid(wing_dict["nodes_per_semispan"])
 
     # Set condition
-    wing.set_condition(alpha=input_dict["condition"]["alpha_root[deg]"])
+    cond_dict = input_dict["condition"]
+    wing.set_condition(alpha=cond_dict["alpha_root[deg]"],
+                       da=cond_dict["aileron_deflection[deg]"],
+                       p_bar=cond_dict["pbar"])
 
     # Solve
     wing.solve()
@@ -282,15 +325,20 @@ if __name__=="__main__":
         print("    Taper Ratio: {0}".format(wing._RT))
     except AttributeError:
         pass
+    print("    Nodes: {0}".format(wing._N))
 
     print()
     print("Condition")
     print("    Alpha: {0} deg".format(np.degrees(wing._alpha)))
+    print("    p_bar: {0}".format(wing.p_bar))
 
     print()
     print("Aerodynamic Coefficients")
     print("    CL: {0}".format(wing.CL))
-    print("    CD_i: {0}".format(wing.CD_i))
+    print("    CD_i (without roll and aileron effects): {0}".format(wing.CD_i_simp))
+    print("    CD_i (with roll and airleron effects): {0}".format(wing.CD_i))
+    print("    Cl: {0}".format(wing.Cl))
+    print("    Cn: {0}".format(wing.Cn))
 
     print()
     print("Planform Effects")
@@ -319,6 +367,8 @@ if __name__=="__main__":
         wing.plot_planform()
     if input_dict["view"]["washout_distribution"]:
         wing.plot_washout()
+    if input_dict["view"]["aileron_distribution"]:
+        wing.plot_aileron()
 
     # Write solution
     with open("Solution.txt", 'w') as f:
@@ -326,8 +376,8 @@ if __name__=="__main__":
         C_inv_str = np.array2string(wing._C_inv)
         a_n_str = np.array2string(wing._a_n)
         b_n_str = np.array2string(wing._b_n)
-        c_n_str = np.array2string(wing._b_n)
-        d_n_str = np.array2string(wing._b_n)
+        c_n_str = np.array2string(wing._c_n)
+        d_n_str = np.array2string(wing._d_n)
 
         print("C array", file=f)
         print(C_str, file=f)
