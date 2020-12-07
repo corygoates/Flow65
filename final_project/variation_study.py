@@ -270,8 +270,8 @@ if __name__=="__main__":
         # Plot
         for i, taper in enumerate(tapers):
             print(CD_i)
-            plt.figure("$CD_i$ for R_T={0}".format(taper), figsize=(6, 6))
-            plt.contour([sweeps_1, sweeps_0], CD_i[i])
+            plt.figure("$CD_i$ for $R_T$={0}".format(taper), figsize=(6, 6))
+            plt.contour(sweeps_1, sweeps_0, CD_i[i])
             plt.xlabel("Outer Sweep Angle [deg]")
             plt.ylabel("Inner Sweep Angle [deg]")
             plt.show()

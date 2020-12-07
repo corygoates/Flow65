@@ -98,10 +98,10 @@ if __name__=="__main__":
 
         N_sweeps = 3
         N_tapers = 3
-        N_CLs = 10
+        N_CLs = 11
         sweeps = np.linspace(-30.0, 30.0, N_sweeps)
         tapers = np.linspace(0.0, 1.0, N_tapers)
-        CLs = np.linspace(0.1, 0.5, N_CLs)
+        CLs = np.linspace(0.01, 0.5, N_CLs)
 
         # Loop through tapers and sweeps
         for taper in tapers:
@@ -111,10 +111,15 @@ if __name__=="__main__":
                 K_D = np.zeros(N_CLs)
                 for i, CL in enumerate(CLs):
 
-                    K_D[i] = get_K_D(sweep=sweep, sweep_type="constant", taper=taper, AR=8.0, CL=CL, grid=40, verbose=True)
+                    K_D[i] = get_K_D(sweep=sweep, sweep_type="constant", taper=taper, AR=8.0, CL=CL, grid=40, verbose=False)
 
                 plt.figure("{0} taper, {1} sweep".format(taper, sweep))
                 plt.plot(CLs, K_D)
                 plt.xlabel("$C_L$")
                 plt.ylabel("$\kappa_D$")
                 plt.show()
+
+                # Determine max variation
+                K_D_avg = np.average(K_D)
+                variation = np.abs((K_D-K_D_avg)/K_D_avg)
+                print("Max variation: {0}%".format(np.max(variation)*100))
