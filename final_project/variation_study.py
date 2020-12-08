@@ -230,10 +230,10 @@ if __name__=="__main__":
 
 
     # Straight swept wing
-    if False:
+    if True:
     
         # Get drag sweep
-        tapers, sweeps, CD_i = sweep_and_taper_sweep([-30.0, 30.0], 21, [0.0, 1.0], 6, sweep_type="constant", AR=8.0, CL=0.5, grid=80)
+        tapers, sweeps, CD_i = sweep_and_taper_sweep([-30.0, 30.0], 21, [0.0, 1.0], 6, sweep_type="constant", AR=16.0, CL=0.5, grid=80)
 
         # Plot
         plt.figure(figsize=(6, 6))
@@ -242,14 +242,14 @@ if __name__=="__main__":
         plt.xlabel("Sweep Angle [deg]")
         plt.ylabel("$CD_i$")
         plt.legend(title="Taper Ratio")
-        plt.savefig("final_project/plots/constant_sweep_and_taper_ratio_AR_8_CL_05.png")
+        plt.savefig("final_project/plots/constant_sweep_and_taper_ratio_AR_16_CL_05.png")
 
 
     # Crescent wing
-    if False:
+    if True:
     
         # Get drag sweep
-        tapers, sweeps, CD_i = sweep_and_taper_sweep([-30.0, 30.0], 21, [0.0, 1.0], 6, sweep_type="linear", AR=8.0, CL=0.5, grid=80)
+        tapers, sweeps, CD_i = sweep_and_taper_sweep([-30.0, 30.0], 21, [0.0, 1.0], 6, sweep_type="linear", AR=16.0, CL=0.5, grid=80)
 
         # Plot
         plt.figure(figsize=(6, 6))
@@ -258,11 +258,11 @@ if __name__=="__main__":
         plt.xlabel("Sweep Angle [deg]")
         plt.ylabel("$CD_i$")
         plt.legend(title="Taper Ratio")
-        plt.savefig("final_project/plots/linear_sweep_and_taper_ratio_AR_8_CL_05.png")
+        plt.savefig("final_project/plots/linear_sweep_and_taper_ratio_AR_16_CL_05.png")
 
     
     # Jointed wing
-    if True:
+    if False:
     
         # Get drag sweep
         tapers, sweeps_0, sweeps_1, CD_i = sweep_and_taper_sweep([[-30.0, 30.0],[-30.0, 30.0]], 11, [0.0, 1.0], 6, AR=8.0, CL=0.5, grid=40, sweep_type="jointed")
