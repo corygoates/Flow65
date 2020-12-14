@@ -266,15 +266,13 @@ if __name__=="__main__":
     if True:
     
         # Get drag sweep
-        tapers, sweeps_0, sweeps_1, CD_i = sweep_and_taper_sweep([[-30.0, 30.0],[-30.0, 30.0]], 5, [0.0, 1.0], 6, AR=8.0, CL=0.5, grid=40, sweep_type="jointed")
+        tapers, sweeps_0, sweeps_1, CD_i = sweep_and_taper_sweep([[-30.0, 30.0],[-30.0, 30.0]], 21, [0.0, 1.0], 6, AR=8.0, CL=0.5, grid=80, sweep_type="jointed")
 
         # Plot
         for i, taper in enumerate(tapers):
             plt.figure("$CD_i$ for $R_T$={0}".format(taper), figsize=(6, 6))
-            plot = plt.contour(sweeps_1, sweeps_0, CD_i[i], 'k')
-            fmt = tck.LogFormatterMathtext()
-            fmt.create_dummy_axis()
-            plt.gca().clabel(plot, plot.levels, fmt=fmt)
+            plot = plt.contour(sweeps_1, sweeps_0, CD_i[i], colors='k')
+            plt.gca().clabel(plot, plot.levels)
             plt.xlabel("Outer Sweep Angle [deg]")
             plt.ylabel("Inner Sweep Angle [deg]")
             plt.show()
