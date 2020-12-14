@@ -94,7 +94,7 @@ if __name__=="__main__":
         plt.show()
 
     # Dependence of K_D on lift coef
-    if True:
+    if False:
 
         N_sweeps = 3
         N_tapers = 3
@@ -123,3 +123,20 @@ if __name__=="__main__":
                 K_D_avg = np.average(K_D)
                 variation = np.abs((K_D-K_D_avg)/K_D_avg)
                 print("Max variation: {0}%".format(np.max(variation)*100))
+
+    # Determine uswept K_D for sweep cases
+    if True:
+
+        # Sweep space
+        tapers = [0.0, 0.5, 1.0]
+        aspects = [4.0, 8.0, 12.0, 16.0]
+        line = "{0:<15}{1:<15}{2:<30}".format("Aspect Ratio", "Taper Ratio", "K_D")
+        print(line)
+
+        for AR in aspects:
+            for TR in tapers:
+                K_D = get_K_D(sweep=0.0, sweep_type="constant", taper=TR, AR=AR, CL=0.5, grid=160, verbose=False)
+
+                # Write results
+                line = "{0:<15}{1:<15}{2:<30}".format(AR, TR, K_D)
+                print(line)

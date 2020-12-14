@@ -4,6 +4,7 @@ import matplotlib
 
 import machupX as mx
 import matplotlib.pyplot as plt
+import matplotlib.ticker as tck
 import numpy as np
 
 
@@ -230,7 +231,7 @@ if __name__=="__main__":
 
 
     # Straight swept wing
-    if True:
+    if False:
     
         # Get drag sweep
         tapers, sweeps, CD_i = sweep_and_taper_sweep([-30.0, 30.0], 21, [0.0, 1.0], 6, sweep_type="constant", AR=16.0, CL=0.5, grid=80)
@@ -246,7 +247,7 @@ if __name__=="__main__":
 
 
     # Crescent wing
-    if True:
+    if False:
     
         # Get drag sweep
         tapers, sweeps, CD_i = sweep_and_taper_sweep([-30.0, 30.0], 21, [0.0, 1.0], 6, sweep_type="linear", AR=16.0, CL=0.5, grid=80)
@@ -262,16 +263,18 @@ if __name__=="__main__":
 
     
     # Jointed wing
-    if False:
+    if True:
     
         # Get drag sweep
-        tapers, sweeps_0, sweeps_1, CD_i = sweep_and_taper_sweep([[-30.0, 30.0],[-30.0, 30.0]], 11, [0.0, 1.0], 6, AR=8.0, CL=0.5, grid=40, sweep_type="jointed")
+        tapers, sweeps_0, sweeps_1, CD_i = sweep_and_taper_sweep([[-30.0, 30.0],[-30.0, 30.0]], 5, [0.0, 1.0], 6, AR=8.0, CL=0.5, grid=40, sweep_type="jointed")
 
         # Plot
         for i, taper in enumerate(tapers):
-            print(CD_i)
             plt.figure("$CD_i$ for $R_T$={0}".format(taper), figsize=(6, 6))
-            plt.contour(sweeps_1, sweeps_0, CD_i[i])
+            plot = plt.contour(sweeps_1, sweeps_0, CD_i[i], 'k')
+            fmt = tck.LogFormatterMathtext()
+            fmt.create_dummy_axis()
+            plt.gca().clabel(plot, plot.levels, fmt=fmt)
             plt.xlabel("Outer Sweep Angle [deg]")
             plt.ylabel("Inner Sweep Angle [deg]")
             plt.show()

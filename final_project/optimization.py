@@ -155,6 +155,8 @@ def optimize(s0, TR, AR, CL, N, method):
     CD_i
 
     K_D
+
+    sweeps
     """
 
     # Get parameters
@@ -194,7 +196,7 @@ def optimize(s0, TR, AR, CL, N, method):
     # Calculate K_D
     K_D = (np.pi*case._AR*CD_i)/case._CL**2-1.0
 
-    return CD_i, K_D
+    return CD_i, K_D, result.x*30.0
 
 
 if __name__=="__main__":
