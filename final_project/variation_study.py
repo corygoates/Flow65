@@ -266,7 +266,9 @@ if __name__=="__main__":
     if True:
     
         # Get drag sweep
-        tapers, sweeps_0, sweeps_1, CD_i = sweep_and_taper_sweep([[-30.0, 30.0],[-30.0, 30.0]], 21, [0.0, 1.0], 6, AR=8.0, CL=0.5, grid=80, sweep_type="jointed")
+        AR = 16
+        CL = 0.5
+        tapers, sweeps_0, sweeps_1, CD_i = sweep_and_taper_sweep([[-30.0, 30.0],[-30.0, 30.0]], 51, [0.0, 1.0], 6, AR=AR, CL=CL, grid=80, sweep_type="jointed")
 
         # Plot
         for i, taper in enumerate(tapers):
@@ -275,4 +277,4 @@ if __name__=="__main__":
             plt.gca().clabel(plot, plot.levels)
             plt.xlabel("Outer Sweep Angle [deg]")
             plt.ylabel("Inner Sweep Angle [deg]")
-            plt.show()
+            plt.savefig("jointed_AR_{0}_CL{1}_TR_{2}.png".format(AR, round(CL, 1), taper))
