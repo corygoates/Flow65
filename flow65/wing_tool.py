@@ -13,6 +13,9 @@ class Wing:
     planform : str
         May be "elliptic" or "tapered".
 
+    b : float
+        Wingspan.
+
     AR : float
         Aspect ratio.
 
@@ -32,14 +35,14 @@ class Wing:
         Design lift coefficient for washout. Only required if "washout"
         is "optimum".
 
-    aileron_lims : list
-        Aileron limits as a fraction of the span.
+    aileron_lims : list, optional
+        Aileron limits as a fraction of the span. Defaults to entire span.
 
-    aileron_cf: list
-        Aileron chord fractions at the root and tip of the ailerons.
+    aileron_cf: list, optional
+        Aileron chord fractions at the root and tip of the ailerons. Defaults to 0.0.
 
-    aileron_hinge_eff : float
-        Aileron hinge efficiency.
+    aileron_hinge_eff : float, optional
+        Aileron hinge efficiency. Defaults to 1.0.
     """
 
     def __init__(self, **kwargs):
@@ -47,6 +50,7 @@ class Wing:
         # Get planform parameters
         self._planform_type = kwargs["planform"]
         self._AR = kwargs["AR"]
+        self._b = kwargs["b"]
         if self._planform_type == "tapered":
             self._RT = kwargs["RT"]
         self._CL_a_s = kwargs.get("CL_a_section", 2.0*np.pi)
@@ -62,9 +66,9 @@ class Wing:
             self._CL_d = kwargs["washout_CLd"]
 
         # Get aileron parameters
-        self._aln_lims = kwargs["aileron_lims"]
-        self._aln_cf = kwargs["aileron_cf"]
-        self._aln_e_hinge = kwargs["aileron_hinge_eff"]
+        self._aln_lims = kwargs.get("aileron_lims", [0.0, 0.5])
+        self._aln_cf = kwargs.get("aileron_cf", [0.0, 0.0])
+        self._aln_e_hinge = kwargs.get("aileron_hinge_eff", 1.0)
 
 
     def set_grid(self, N):
@@ -82,7 +86,7 @@ class Wing:
         # Create theta and z distributions
         self._N = 2*N-1
         self._theta = np.linspace(0, np.pi, self._N)
-        self._z = -0.5*np.cos(self._theta)
+        self._z = -0.5*self._b*np.cos(self._theta)
 
         # Calculate control point trig values
         self._N_range = np.arange(1, self._N+1)
@@ -179,18 +183,21 @@ class Wing:
         alpha : float
             Angle of attack in degrees.
 
-        da : float
-            Aileron deflection in degrees.
+        V_inf : float
+            Freestream velocity.
 
-        p_bar : float or string
-            Nondimensional rolling rate. May be "steady" to imply the 
-            steady roll rate should be solved for.
+        da : float, optional
+            Aileron deflection in degrees. Defaults to 0.0.
+
+        p_bar : float or string, optional
+            Nondimensional rolling rate. May be "steady" to imply the steady roll rate should be solved for. Defaults to 0.0.
         """
 
-        # Get angle of attack
+        # Store condition
         self._alpha = np.radians(kwargs["alpha"])
-        self._da = np.radians(kwargs["da"])
-        self._p_bar = kwargs["p_bar"]
+        self._V_inf = kwargs["V_inf"]
+        self._da = np.radians(kwargs.get("da", 0.0))
+        self._p_bar = kwargs.get("p_bar", 0.0)
 
 
     def solve(self):
@@ -209,6 +216,10 @@ class Wing:
 
         # Determine lift coefficient
         self.CL = np.pi*self._AR*self._A_n[0]
+
+        # Calculate gamma distribution
+        An_sin_n0 = self._A_n[np.newaxis,:]*np.sin(self._N_range[np.newaxis,:]*self._theta[:,np.newaxis])
+        self.gamma = 2.0*self._b*self._V_inf*np.sum(An_sin_n0, axis=1).flatten()
 
         # Determine drag coefficient with and without rolling and aileron effects
         self.CD_i = np.pi*self._AR*np.sum(self._N_range*self._A_n**2) # With

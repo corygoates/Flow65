@@ -5,7 +5,7 @@ import os
 import sys
 
 setup(name = 'Flow65',
-    version = '1.0.0',
+    version = '1.1.0',
     description = "Flow65: a potential flow library",
     url = 'https://github.com/corygoates/Flow65',
     author = 'usuaero',

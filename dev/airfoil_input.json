@@ -1,17 +1,17 @@
 {
     "geometry" : {
-        "airfoil" : "UL08",
+        "airfoil" : "0010",
         "CL_design" : 0.25,
         "trailing_edge" : "closed",
-        "n_points" : 200
+        "n_points" : 300
     },
     "operating" : {
         "freestream_velocity" : 10.0,
         "alpha[deg]" : 5.0
     },
     "alpha_sweep" : {
-        "start[deg]" : -12.0,
-        "end[deg]" : 16.0,
+        "start[deg]" : -2.0,
+        "end[deg]" : 4.0,
         "increment[deg]" : 2.0
     },
     "plot" : {
@@ -23,9 +23,9 @@
         "delta_y" : 0.1
     },
     "run_commands" : {
-        "plot_streamlines" : true,
+        "plot_streamlines" : false,
         "plot_pressure" : false,
-        "alpha_sweep" : false,
+        "alpha_sweep" : true,
         "export_geometry" : false
     }
 }
