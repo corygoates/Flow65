@@ -637,8 +637,8 @@ class VortexPanelAirfoil(ObjectInPotentialFlow):
         plt.plot(self._p_C[:self._N//2,0], C_P[:self._N//2], 'k--', label='Bottom')
         plt.plot(self._p_C[self._N//2:,0], C_P[self._N//2:], 'k', label='Top')
         plt.gca().invert_yaxis()
-        plt.xlabel("x/c")
-        plt.ylabel("C_P")
+        plt.xlabel("$x/c$")
+        plt.ylabel("$C_P$")
         plt.legend()
         plt.show()
 

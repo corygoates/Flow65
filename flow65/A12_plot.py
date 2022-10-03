@@ -35,8 +35,7 @@ if __name__=="__main__":
     ]
 
     # Initialize airfoil
-    airfoil = VortexPanelAirfoil(NACA="2412", x_le=0.0, x_te=1.0)
-    airfoil.panel(99)
+    airfoil = VortexPanelAirfoil(airfoil="2412", x_le=0.0, x_te=1.0, n_points=10, trailing_edge='open')
 
     # Get vortex panel results
     V = 1.0 # Arbitrary
@@ -46,7 +45,9 @@ if __name__=="__main__":
         airfoil.set_condition(alpha=a, V=V)
 
         # Get CL
-        CL_v[i],_,_ = airfoil.solve()
+        CL_v[i],Cm_le,Cm_c4,_ = airfoil.solve()
+        if abs(a) < 1e-12:
+            print(CL_v[i], Cm_le, Cm_c4)
 
     # Plot
     plt.figure()
